@@ -101,7 +101,6 @@ class ImportB3D(bpy.types.Operator, ImportHelper):
         return import_b3d.load(self, context, **keywords)
 
 
-@orientation_helper(axis_forward='Y', axis_up='Z')
 class ExportB3D(bpy.types.Operator, ExportHelper):
     """Export to B3D file format (.b3d)"""
     bl_idname = "export_scene.blitz3d_b3d"
@@ -125,15 +124,7 @@ class ExportB3D(bpy.types.Operator, ExportHelper):
 
         export_b3d.b3d_parameters["export-selected"] = self.use_selection
 
-        keywords = self.as_keywords(ignore=("axis_forward",
-                                            "axis_up",
-                                            "filter_glob",
-                                            "check_existing",
-                                            ))
-        global_matrix = axis_conversion(to_forward=self.axis_forward,
-                                        to_up=self.axis_up,
-                                        ).to_4x4()
-        keywords["global_matrix"] = global_matrix
+        keywords = self.as_keywords(ignore=("filter_glob", "check_existing"))
 
         return export_b3d.save(self, context, **keywords)
 
