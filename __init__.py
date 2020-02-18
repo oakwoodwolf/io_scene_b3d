@@ -62,9 +62,9 @@ class ImportB3D(bpy.types.Operator, ImportHelper):
     bl_options = {'UNDO'}
 
     filename_ext = ".b3d"
-    filter_glob : StringProperty(default="*.b3d", options={'HIDDEN'})
+    filter_glob = StringProperty(default="*.b3d", options={'HIDDEN'})
 
-    constrain_size : FloatProperty(
+    constrain_size = FloatProperty(
             name="Size Constraint",
             description="Scale the model by 10 until it reaches the "
                         "size constraint (0 to disable)",
@@ -72,13 +72,13 @@ class ImportB3D(bpy.types.Operator, ImportHelper):
             soft_min=0.0, soft_max=1000.0,
             default=10.0,
             )
-    use_image_search : BoolProperty(
+    use_image_search = BoolProperty(
             name="Image Search",
             description="Search subdirectories for any associated images "
                         "(Warning, may be slow)",
             default=True,
             )
-    use_apply_transform : BoolProperty(
+    use_apply_transform = BoolProperty(
             name="Apply Transform",
             description="Workaround for object transformations "
                         "importing incorrectly",
@@ -107,13 +107,9 @@ class ExportB3D(bpy.types.Operator, ExportHelper):
     bl_label = 'Export B3D'
 
     filename_ext = ".b3d"
+    filter_glob = StringProperty(default="*.b3d", options={'HIDDEN'})
 
-    filter_glob: StringProperty(
-            default="*.b3d",
-            options={'HIDDEN'},
-            )
-
-    use_selection: BoolProperty(
+    use_selection = BoolProperty(
             name="Selection Only",
             description="Export selected objects only",
             default=False,
