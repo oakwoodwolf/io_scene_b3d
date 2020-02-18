@@ -225,10 +225,10 @@ def write_texs(objects=[]):
     if objects:
         exp_obj = objects
     else:
-        if b3d_parameters.get("export-selected"):
-            exp_obj = [ob for ob in bpy.data.objects if ob.select]
-        else:
-            exp_obj = bpy.data.objects
+        exp_obj = bpy.data.objects
+
+    if b3d_parameters.get("export-selected"):
+        exp_obj = [ob for ob in exp_obj if ob.select_get()]
 
     if PROGRESS: print(len(exp_obj),"TEXS")
 
@@ -363,10 +363,10 @@ def write_brus(objects=[]):
     if objects:
         exp_obj = objects
     else:
-        if  b3d_parameters.get("export-selected"):
-            exp_obj = [ob for ob in bpy.data.objects if ob.select]
-        else:
-            exp_obj = bpy.data.objects
+        exp_obj = bpy.data.objects
+
+    if b3d_parameters.get("export-selected"):
+        exp_obj = [ob for ob in exp_obj if ob.select_get()]
 
     if PROGRESS: print(len(exp_obj),"BRUS")
     if PROGRESS_VERBOSE: progress = 0
@@ -543,10 +543,10 @@ def write_node(objects=[]):
     if objects:
         exp_obj = objects
     else:
-        if b3d_parameters.get("export-selected"):
-            exp_obj = [ob for ob in bpy.data.objects if ob.select]
-        else:
-            exp_obj = bpy.data.objects
+        exp_obj = bpy.data.objects
+
+    if b3d_parameters.get("export-selected"):
+        exp_obj = [ob for ob in exp_obj if ob.select_get()]
 
     for obj in exp_obj:
         if obj.type == "MESH":
@@ -1602,6 +1602,7 @@ def save(operator,
         filepath += ".b3d"
 
     obj_list = []
+    # use_selection
     obj_list = bpy.data.objects
 
     global the_scene
