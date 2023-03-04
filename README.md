@@ -4,7 +4,7 @@ Blender Import-Export script for Blitz 3D .b3d files
 
 ## Download
 
-You may download plugin zip in the [releases](https://github.com/joric/io_scene_b3d/releases) section
+You may download plugin zip in the [releases](https://github.com/GreenXenith/io_scene_b3d/releases) section
 
 ## Installation
 
