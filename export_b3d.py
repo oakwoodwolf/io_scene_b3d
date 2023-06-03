@@ -105,7 +105,7 @@ def write_float_triplet(value1, value2, value3):
 
 def write_float_quad(value1, value2, value3, value4):
     return struct.pack("<ffff", value1, value2, value3, value4)
-    
+
 def write_string(value):
     binary_format = "<%ds"%(len(value)+1)
     return struct.pack(binary_format, str.encode(value))
@@ -123,11 +123,11 @@ def getArmatureAnimationEnd(armature):
         for curve in ipo:
             if "pose" in curve.data_path:
                 end_frame = max(end_frame, curve.keyframe_points[-1].co[0])
-    
+
     for nla_track in armature.animation_data.nla_tracks:
         if len(nla_track.strips) > 0:
             end_frame = max(end_frame, nla_track.strips[-1].frame_end)
-        
+
     return end_frame
 
 # ==== Write B3D File ====
@@ -163,12 +163,12 @@ def write_b3d_file(filename, objects=[]):
     file = open(filename,'wb')
     file.write(file_buf)
     file.close()
-    
+
     # free memory
     trimmed_paths = {}
-    
+
     end = time.time()
-    
+
     print("Exported in", (end - start))
 
 
@@ -235,22 +235,22 @@ def write_texs(objects=[]):
     if PROGRESS_VERBOSE: progress = 0
 
     for obj in exp_obj:
-        
+
         if PROGRESS_VERBOSE:
             progress = progress + 1
             if (progress % 10 == 0): print("TEXS",progress,"/",len(exp_obj))
-        
+
         if obj.type == "MESH":
             set_count = 0
             set_wrote = 0
             #data = obj.getData(mesh = True)
             data = obj.data
-            
+
             # FIXME?
             #orig_uvlayer = data.activeUVLayer
-            
+
             layer_set = [[],[],[],[],[],[],[],[]]
-            
+
             # 8 UV layers are supported
             texture_flags.append([None,None,None,None,None,None,None,None])
 
@@ -265,17 +265,17 @@ def write_texs(objects=[]):
             for face in getFaces(data):
                 for iuvlayer,uvlayer in enumerate(uv_textures):
                     if iuvlayer < 8:
-                        
+
                         # FIXME?
                         #data.activeUVLayer = uvlayer
-                        
+
                         #layer_set[iuvlayer].append(face.uv)
                         new_data = None
                         try:
                             new_data = uvlayer.data[face.index].uv
                         except:
                             pass
-                        
+
                         layer_set[iuvlayer].append( new_data )
 
             for i in range(len(uv_textures)):
@@ -302,13 +302,13 @@ def write_texs(objects=[]):
             for face in getFaces(data):
                 for iuvlayer,uvlayer in enumerate(uv_textures):
                     if iuvlayer < 8:
-                        
+
                         if not (iuvlayer < len(uv_textures)):
                             continue
-                        
+
                         # FIXME?
                         #data.activeUVLayer = uvlayer
-                        
+
                         #if DEBUG: print("<uv face=", face.index, ">")
 
                         img = getFaceImage(face)
@@ -331,7 +331,7 @@ def write_texs(objects=[]):
                                 temp_buf += write_float(0) #Rotation
                             #else:
                             #    if DEBUG: print("    <image id=(previous)","name=","'"+img_name+"'","/>")
-                            
+
                         #if DEBUG: print("</uv>")
 
             obj_count += 1
@@ -372,32 +372,32 @@ def write_brus(objects=[]):
     if PROGRESS_VERBOSE: progress = 0
 
     for obj in exp_obj:
-        
+
         if PROGRESS_VERBOSE:
             progress += 1
             if (progress % 10 == 0): print("BRUS",progress,"/",len(exp_obj))
-            
+
         if obj.type == "MESH":
             data = obj.data
-            
+
             uv_textures = getUVTextures(data)
-            
+
             if len(uv_textures) <= 0:
                 continue
 
             if DEBUG: print("<obj name=",obj.name,">")
 
             img_found = 0
-            
+
             for face in getFaces(data):
-                
+
                 face_stack = []
-                
+
                 for iuvlayer,uvlayer in enumerate(uv_textures):
                     if iuvlayer < 8:
-                        
+
                         img_id = -1
-                        
+
                         if face.index >= len(uv_textures[iuvlayer].data):
                             continue
 
@@ -407,18 +407,18 @@ def write_brus(objects=[]):
                             continue
 
                         img_found = 1
-                        
+
                         if img.filepath in trimmed_paths:
                             img_name = trimmed_paths[img.filepath]
                         else:
                             img_name = os.path.basename(img.filepath)
                             trimmed_paths[img.filepath] = img_name
-                        
+
                         if DEBUG: print("    <!-- Building FACE 'stack' -->")
-                        
+
                         if img_name in texs_stack:
                             img_id = texs_stack[img_name][TEXTURE_ID]
-                        
+
                         face_stack.insert(iuvlayer,img_id)
                         if DEBUG: print("    <uv face=",face.index,"layer=", iuvlayer, " imgid=", img_id, "/>")
 
@@ -427,7 +427,7 @@ def write_brus(objects=[]):
 
 
                 if DEBUG: print("    <!-- Writing chunk -->")
-                
+
                 if not img_found:
                     if data.materials:
                         if data.materials[face.material_index]:
@@ -471,7 +471,7 @@ def write_brus(objects=[]):
                                 for i in face_stack:
                                     temp_buf += write_int(i) #Texture ID
                 else: # img_found
-                
+
                     if not face_stack in brus_stack:
                         brus_stack.append(face_stack)
                         mat_count += 1
@@ -482,9 +482,9 @@ def write_brus(objects=[]):
                         temp_buf += write_float(1) #Alpha
                         temp_buf += write_float(0) #Shininess
                         temp_buf += write_int(1)   #Blend
-                        
+
                         if DEBUG: print("    <brush id=",len(brus_stack),">")
-                        
+
                         if b3d_parameters.get("vertex-colors") and len(getVertexColors(data)) > 0:
                             temp_buf += write_int(2) #Fx
                         else:
@@ -493,9 +493,9 @@ def write_brus(objects=[]):
                         for i in face_stack:
                             temp_buf += write_int(i) #Texture ID
                             if DEBUG: print("        <texture id=",i,">")
-                        
+
                         if DEBUG: print("    </brush>")
-                
+
                 if DEBUG: print("")
 
             if DEBUG: print("</obj>")
@@ -508,7 +508,7 @@ def write_brus(objects=[]):
     if len(temp_buf) > 0:
         brus_buf += write_chunk(b"BRUS",write_int(texture_count) + temp_buf) #N Texs
         temp_buf = ""
-    
+
     return brus_buf
 
 # ==== Write NODE Chunk ====
@@ -517,7 +517,7 @@ def write_node(objects=[]):
     global keys_stack
     global b3d_parameters
     global the_scene
-    
+
     root_buf = []
     node_buf = []
     main_buf = bytearray()
@@ -529,13 +529,7 @@ def write_node(objects=[]):
     num_ligs = 0
     num_cams = 0
     num_lorc = 0
-    #exp_scn = Blender.Scene.GetCurrent()
-    #exp_scn = the_scene
-    #exp_con = exp_scn.getRenderingContext()
 
-    #first_frame = Blender.Draw.Create(exp_con.startFrame())
-    #last_frame = Blender.Draw.Create(exp_con.endFrame())
-    #num_frames = last_frame.val - first_frame.val
     first_frame = the_scene.frame_start
 
     if DEBUG: print("<node first_frame=", first_frame, ">")
@@ -578,20 +572,20 @@ def write_node(objects=[]):
     if PROGRESS: progress = 0
 
     for obj in exp_obj:
-        
+
         if PROGRESS:
             progress += 1
             print("NODE:",progress,"/",len(exp_obj))
-        
+
         if obj.type == "MESH":
-            
+
             if DEBUG: print("    <mesh name=",obj.name,">")
-            
+
             bone_stack = {}
             keys_stack = []
 
             anim_data = None
-            
+
             # check if this object has an armature modifier
             for curr_mod in obj.modifiers:
                 if curr_mod.type == 'ARMATURE':
@@ -611,7 +605,7 @@ def write_node(objects=[]):
                 matrix = mathutils.Matrix()
 
                 temp_buf.append(write_string(obj.name)) #Node Name
-                
+
                 position = matrix.to_translation()
                 temp_buf.append(write_float_triplet(position[0], position[1], position[2])) #Position X, Y, Z
 
@@ -619,7 +613,7 @@ def write_node(objects=[]):
                 temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1])) #Scale X, Y, Z
 
                 if DEBUG: print("        <arm name=", obj.name, " loc=", -position[0], position[1], position[2], " scale=", scale[0], scale[1], scale[2], "/>")
-                
+
                 quat = matrix.to_quaternion()
                 quat.normalize()
 
@@ -631,8 +625,8 @@ def write_node(objects=[]):
                 else:
                     matrix = obj.matrix_world @ TRANS_MATRIX
                     scale_matrix = obj.matrix_world.copy()
-                
-                
+
+
                 if bpy.app.version_string >= "2.62":
                     # blender 2.62 broke the API : Column-major access was changed to row-major access
                     tmp = mathutils.Vector([matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1]])
@@ -640,7 +634,7 @@ def write_node(objects=[]):
                     matrix[1][1] = matrix[1][2]
                     matrix[2][1] = matrix[2][2]
                     matrix[3][1] = matrix[3][2]
-                    
+
                     matrix[0][2] = tmp[0]
                     matrix[1][2] = tmp[1]
                     matrix[2][2] = tmp[2]
@@ -655,7 +649,7 @@ def write_node(objects=[]):
                 #print("Matrix : ", matrix)
                 position = matrix.to_translation()
 
-                temp_buf.append(write_float_triplet(position[0], position[2], position[1])) 
+                temp_buf.append(write_float_triplet(position[0], position[2], position[1]))
 
                 scale = scale_matrix.to_scale()
                 temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1]))
@@ -664,48 +658,35 @@ def write_node(objects=[]):
                 quat.normalize()
 
                 temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
-                  
+
                 if DEBUG:
                     print("        <position>",position[0],position[2],position[1],"</position>")
                     print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
                     print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
-            
+
             if anim_data:
                 the_scene.frame_set(1,subframe=0.0)
-                
+
                 arm_matrix = arm.matrix_world
-                
+
                 if b3d_parameters.get("local-space"):
                     arm_matrix = mathutils.Matrix()
-                
+
                 def read_armature(arm_matrix,bone,parent = None):
                     if (parent and not bone.parent.name == parent.name):
                         return
 
                     matrix = mathutils.Matrix(bone.matrix)
-                    
-                    if parent:
 
-                        #print("==== "+bone.name+" ====")
+                    if parent:
                         a = (bone.matrix_local)
-                        
-                        #print("A : [%.2f %.2f %.2f %.2f]" % (a[0][0], a[0][1], a[0][2], a[0][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (a[1][0], a[1][1], a[1][2], a[1][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (a[2][0], a[2][1], a[2][2], a[2][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (a[3][0], a[3][1], a[3][2], a[3][3]))
-                        
                         b = (parent.matrix_local.inverted().to_4x4())
-                        
-                        #print("B : [%.2f %.2f %.2f %.2f]" % (b[0][0], b[0][1], b[0][2], b[0][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (b[1][0], b[1][1], b[1][2], b[1][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (b[2][0], b[2][1], b[2][2], b[2][3]))
-                        #print("    [%.2f %.2f %.2f %.2f]" % (b[3][0], b[3][1], b[3][2], b[3][3]))
-                        
+
                         par_matrix = b @ a
-                        
+
                         transform = mathutils.Matrix([[1,0,0,0],[0,0,-1,0],[0,-1,0,0],[0,0,0,1]])
                         par_matrix = transform @ par_matrix @ transform
-                        
+
                         # FIXME: that's ugly, find a clean way to change the matrix.....
                         if bpy.app.version_string >= "2.62":
                             # blender 2.62 broke the API : Column-major access was changed to row-major access
@@ -715,41 +696,11 @@ def write_node(objects=[]):
                         else:
                             par_matrix[3][1] = -par_matrix[3][1]
                             par_matrix[3][2] = -par_matrix[3][2]
-                        
-                        #c = par_matrix
-                        #print("With parent")
-                        #print("C : [%.3f %.3f %.3f %.3f]" % (c[0][0], c[0][1], c[0][2], c[0][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[1][0], c[1][1], c[1][2], c[1][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[2][0], c[2][1], c[2][2], c[2][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[3][0], c[3][1], c[3][2], c[3][3]))
-                        
-                    else:
-                        
-                        #print("==== "+bone.name+" ====")
-                        #print("Without parent")
 
+                    else:
                         m = arm_matrix @ bone.matrix_local
-                        
-                        #c = arm.matrix_world
-                        #print("A : [%.3f %.3f %.3f %.3f]" % (c[0][0], c[0][1], c[0][2], c[0][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[1][0], c[1][1], c[1][2], c[1][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[2][0], c[2][1], c[2][2], c[2][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[3][0], c[3][1], c[3][2], c[3][3]))
-                        
-                        #c = bone.matrix_local
-                        #print("B : [%.3f %.3f %.3f %.3f]" % (c[0][0], c[0][1], c[0][2], c[0][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[1][0], c[1][1], c[1][2], c[1][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[2][0], c[2][1], c[2][2], c[2][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[3][0], c[3][1], c[3][2], c[3][3]))
-                        
+
                         par_matrix = m @ mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
-                                                
-                        #c = par_matrix
-                        #print("C : [%.3f %.3f %.3f %.3f]" % (c[0][0], c[0][1], c[0][2], c[0][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[1][0], c[1][1], c[1][2], c[1][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[2][0], c[2][1], c[2][2], c[2][3]))
-                        #print("    [%.3f %.3f %.3f %.3f]" % (c[3][0], c[3][1], c[3][2], c[3][3]))
-                        
 
                     bone_stack[bone.name] = [par_matrix,parent,bone]
 
@@ -761,54 +712,32 @@ def write_node(objects=[]):
                         read_armature(arm_matrix,bone)
 
                 frame_count = first_frame
-                
+
                 last_frame = int(getArmatureAnimationEnd(arm))
                 num_frames = last_frame - first_frame
 
                 while frame_count <= last_frame:
 
                     the_scene.frame_set(int(frame_count), subframe=0.0)
-                    
+
                     if DEBUG: print("        <frame id=", int(frame_count), ">")
                     arm_pose = arm.pose
                     arm_matrix = arm.matrix_world
-                    
+
                     transform = mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
                     arm_matrix = transform @ arm_matrix
 
                     for bone_name in arm.data.bones.keys():
-                        #bone_matrix = mathutils.Matrix(arm_pose.bones[bone_name].poseMatrix)
                         bone_matrix = mathutils.Matrix(arm_pose.bones[bone_name].matrix)
-                        
-                        #print("(outer loop) bone_matrix for",bone_name,"=", bone_matrix)
-                        
-                        #print(bone_name,":",bone_matrix)
-                        
-                        #bone_matrix = bpy.data.scenes[0].objects[0].pose.bones['Bone'].matrix
-                        
+
                         for ibone in bone_stack:
-                            
+
                             bone = bone_stack[ibone]
-                            
+
                             if bone[BONE_ITSELF].name == bone_name:
-                                
+
                                 if DEBUG: print("            <bone id=",ibone,"name=",bone_name,">")
-                                
-                                # == 2.4 exporter ==
-                                #if bone_stack[ibone][1]:
-                                #    par_matrix = Blender.Mathutils.Matrix(arm_pose.bones[bone_stack[ibone][1].name].poseMatrix)
-                                #    bone_matrix *= par_matrix.invert()
-                                #else:
-                                #    if b3d_parameters.get("local-space"):
-                                #        bone_matrix *= TRANS_MATRIX
-                                #    else:
-                                #        bone_matrix *= arm_matrix
-                                #bone_loc = bone_matrix.translationPart()
-                                #bone_rot = bone_matrix.rotationPart().toQuat()
-                                #bone_rot.normalize()
-                                #bone_sca = bone_matrix.scalePart()
-                                #keys_stack.append([frame_count - first_frame.val+1,bone_name,bone_loc,bone_sca,bone_rot])
-                                
+
                                 # if has parent
                                 if bone[BONE_PARENT]:
                                     par_matrix = mathutils.Matrix(arm_pose.bones[bone[BONE_PARENT].name].matrix)
@@ -817,35 +746,21 @@ def write_node(objects=[]):
                                     if b3d_parameters.get("local-space"):
                                         bone_matrix = bone_matrix*mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
                                     else:
-                                        
-                                        #if frame_count == 1:
-                                        #    print("====",bone_name,"====")
-                                        #    print("arm_matrix = ", arm_matrix)
-                                        #    print("bone_matrix = ", bone_matrix)
-                                        
                                         bone_matrix = arm_matrix @ bone_matrix
-                                        
-                                        #if frame_count == 1:
-                                        #    print("arm_matrix*bone_matrix", bone_matrix)
-                                        
-                                
-                                #print("bone_matrix =", bone_matrix)
-                                
+
                                 bone_sca = bone_matrix.to_scale()
                                 bone_loc = bone_matrix.to_translation()
-                                
+
                                 # FIXME: silly tweaks to resemble the Blender 2.4 exporter output
                                 if b3d_parameters.get("local-space"):
-                                    
                                     bone_rot = bone_matrix.to_quaternion()
                                     bone_rot.normalize()
-                                    
-                                    
+
                                     if not bone[BONE_PARENT]:
                                         tmp = bone_rot.z
                                         bone_rot.z = bone_rot.y
                                         bone_rot.y = tmp
-                                        
+
                                         bone_rot.x = -bone_rot.x
                                     else:
                                         tmp = bone_loc.z
@@ -866,11 +781,8 @@ def write_node(objects=[]):
 
                     if DEBUG: print("        </frame>")
 
-                #Blender.Set("curframe",0)
-                #Blender.Window.Redraw()
-
             temp_buf.append(write_node_mesh(obj,obj_count,anim_data,exp_root)) #NODE MESH
-            
+
             if anim_data:
                 temp_buf.append(write_node_anim(num_frames)) #NODE ANIM
 
@@ -883,7 +795,7 @@ def write_node(objects=[]):
             if len(temp_buf) > 0:
                 node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
                 temp_buf = []
-            
+
             if DEBUG: print("    </mesh>")
 
         if b3d_parameters.get("cameras"):
@@ -966,7 +878,7 @@ def write_node(objects=[]):
 
                 scale = matrix.scale_part()
                 temp_buf.append(write_float_triplet(scale[0], scale[1], scale[2]))
-                
+
                 if DEBUG: print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
 
                 matrix *= mathutils.Matrix.Rotation(180,4,'Y')
@@ -979,7 +891,7 @@ def write_node(objects=[]):
                 if len(temp_buf) > 0:
                     node_buf.append(write_chunk(b"NODE","b".join(temp_buf)))
                     temp_buf = []
-    
+
     if len(node_buf) > 0:
         if exp_root:
             main_buf += write_chunk(b"NODE",b"".join(root_buf) + b"".join(node_buf))
@@ -1004,7 +916,7 @@ def write_node_mesh(obj,obj_count,arm_action,exp_root):
         data = obj.data
     else:
         data = obj.to_mesh()
-    
+
     temp_buf += write_int(-1) #Brush ID
     temp_buf += write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root) #NODE MESH VRTS
     temp_buf += write_node_mesh_tris(obj, data, obj_count, arm_action, exp_root) #NODE MESH TRIS
@@ -1026,54 +938,34 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
     vrts_buf = bytearray()
     temp_buf = []
     obj_flags = 0
-    
-    #global time_in_a
-    #global time_in_b
-    #global time_in_b1
-    #global time_in_b2
-    #global time_in_b3
-    #global time_in_b4
 
-    #data = obj.getData(mesh = True)
     global the_scene
-    
-    # FIXME: port to 2.5 API?
-    #orig_uvlayer = data.activeUVLayer
 
     if b3d_parameters.get("vertex-normals"):
         obj_flags += 1
 
-    #if b3d_parameters.get("vertex-colors") and data.getColorLayerNames():
     if b3d_parameters.get("vertex-colors") and len(getVertexColors(data)) > 0:
         obj_flags += 2
 
     temp_buf.append(write_int(obj_flags)) #Flags
-    #temp_buf += write_int(len(data.getUVLayerNames())) #UV Set
     temp_buf.append(write_int(len(getUVTextures(data)))) #UV Set
     temp_buf.append(write_int(2)) #UV Set Size
 
     # ---- Prepare the mesh "stack"
     build_vertex_groups(data)
-    
+
     # ---- Fill the mesh "stack"
     if DEBUG: print("")
     if DEBUG: print("        <!-- Building vertex_groups -->\n")
 
     ivert = -1
 
-
-    #if PROGRESS_VERBOSE:
-    #    progress = 0
-    #    print("    vertex_groups, face:",0,"/",len(getFaces(data)))
-    
     the_scene.frame_set(1,subframe=0.0)
-    
+
     if b3d_parameters.get("local-space"):
         mesh_matrix = mathutils.Matrix()
     else:
         mesh_matrix = obj.matrix_world.copy()
-    
-    #import time
 
     # new! 2.8 let's precalculate loop indices for every face and vertex id
     me = data
@@ -1094,25 +986,19 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
     uv_layers_count = len(getUVTextures(data))
     data.calc_normals_split() # ensure loop normals are valid
     for face in getFaces(data):
-        
+
         if DEBUG: print("        <!-- Face",face.index,"-->")
-        
-        #if PROGRESS_VERBOSE:
-        #    progress += 1
-        #    if (progress % 50 == 0): print("    vertex_groups, face:",progress,"/",len(data.faces))
-        
+
         per_face_vertices[face.index] = []
-        
+
         for vertex_id, loop_index in enumerate(face.loop_indices):
-            
+
             loop = data.loops[loop_index]
             vert = loop.vertex_index
             ivert += 1
-                        
+
             per_face_vertices[face.index].append(ivert)
-            
-            #a = time.time()
-                            
+
             if arm_action:
                 v = mesh_matrix @ data.vertices[vert].co
                 vert_matrix = mathutils.Matrix.Translation(v)
@@ -1124,22 +1010,16 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
 
             temp_buf.append(write_float_triplet(vcoord.x, vcoord.z, vcoord.y))
 
-            #b = time.time()
-            #time_in_a += b - a
-            
             if b3d_parameters.get("vertex-normals"):
                 norm_matrix = mathutils.Matrix.Translation(loop.normal)
 
                 norm_matrix @= TRANS_MATRIX
                 normal_vector = norm_matrix.to_translation()
                 normal_vector.normalize()
-                
+
                 temp_buf.append(write_float_triplet(normal_vector.x,  #NX
                                                     normal_vector.z,  #NY
                                                     normal_vector.y)) #NZ
-
-            #c = time.time()
-            #time_in_b += c - b
 
             if b3d_parameters.get("vertex-colors") and len(getVertexColors(data)) > 0:
                 vertex_colors = getVertexColors(data)
@@ -1151,15 +1031,12 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
                     vcolor = vertex_colors[0].data[face.index].color3
                 elif vertex_id == 3:
                     vcolor = vertex_colors[0].data[face.index].color4
-                
+
                 temp_buf.append(write_float_quad(vcolor.r, #R
                                                  vcolor.g, #G
                                                  vcolor.b, #B
                                                  1.0))     #A (FIXME?)
-            
-            #d = time.time()
-            #time_in_b1 += d - c
-            
+
             for vg in obj.vertex_groups:
                 w = 0.0
                 try:
@@ -1174,50 +1051,11 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
             # face is from data.polygons
             # uv_layers_count is from data.uv_layers
 
-
             for iuvlayer in range(uv_layers_count):
                 uv = my_uvs[face.index][vertex_id]
                 temp_buf.append(write_float_couple(uv[0], 1-uv[1]) )
 
-
-            #e = time.time()
-            #time_in_b2 += e - d
-
-            """
-            # ==== !!bottleneck here!! (40% of the function)
-            if vertex_id == 0:
-                for iuvlayer in range(uv_layers_count):
-                    uv = getUVTextures(data)[iuvlayer].data[face.index].uv1
-                    temp_buf.append(write_float_couple(uv[0], 1-uv[1]) ) # U, V
-            elif vertex_id == 1:
-                for iuvlayer in range(uv_layers_count):
-                    uv = getUVTextures(data)[iuvlayer].data[face.index].uv2
-                    temp_buf.append(write_float_couple(uv[0], 1-uv[1]) ) # U, V
-            elif vertex_id == 2:
-                for iuvlayer in range(uv_layers_count):
-                    uv = getUVTextures(data)[iuvlayer].data[face.index].uv3
-                    temp_buf.append(write_float_couple(uv[0], 1-uv[1]) ) # U, V
-            elif vertex_id == 3:
-                for iuvlayer in range(uv_layers_count):
-                    uv = getUVTextures(data)[iuvlayer].data[face.index].uv4
-                    temp_buf.append(write_float_couple(uv[0], 1-uv[1]) ) # U, V
-            """
-
-            #f = time.time()
-            #time_in_b3 += f - e
-            # =====================
-
-    
     if DEBUG: print("")
-    
-    #c = time.time()
-    #time_in_b += c - b
-    #print("time_in_a = ",time_in_a)
-    #print("time_in_b = ",time_in_b)
-    #print("time_in_b1 = ", time_in_b1)
-    #print("time_in_b2 = ", time_in_b2)
-    #print("time_in_b3 = ", time_in_b3)
-    #print("time_in_b4 = ", time_in_b4)
 
     if len(temp_buf) > 0:
         vrts_buf += write_chunk(b"VRTS",b"".join(temp_buf))
@@ -1227,28 +1065,23 @@ def write_node_mesh_vrts(obj, data, obj_count, arm_action, exp_root):
 
 # ==== Write NODE MESH TRIS Chunk ====
 def write_node_mesh_tris(obj, data, obj_count,arm_action,exp_root):
-
     global texture_count
-
-    #FIXME?
-    #orig_uvlayer = data.activeUVLayer
 
     # An dictoriary that maps all brush-ids to a list of faces
     # using this brush. This helps to sort the triangles by
     # brush, creating less mesh buffer in irrlicht.
     dBrushId2Face = {}
-    
+
     if DEBUG: print("")
-    
+
     for face in getFaces(data):
         img_found = 0
         face_stack = []
-        
+
         uv_textures = getUVTextures(data)
         uv_layer_count = len(uv_textures)
         for iuvlayer,uvlayer in enumerate(uv_textures):
             if iuvlayer < 8:
-                
                 if iuvlayer >= uv_layer_count:
                     continue
 
@@ -1262,7 +1095,7 @@ def write_node_mesh_tris(obj, data, obj_count,arm_action,exp_root):
                     else:
                         img_name = os.path.basename(img.filepath)
                         trimmed_paths[img.filepath] = img_name
-                    
+
                     img_found = 1
                     if img_name in texs_stack:
                         img_id = texs_stack[img_name][TEXTURE_ID]
@@ -1298,30 +1131,30 @@ def write_node_mesh_tris(obj, data, obj_count,arm_action,exp_root):
             dBrushId2Face[brus_id].append(face)
         else:
             dBrushId2Face[brus_id] = [face]
-        
+
         if DEBUG: print("        <!-- Face",face.index,"in brush",brus_id,"-->")
-    
+
     tris_buf = bytearray()
-    
+
     if DEBUG: print("")
     if DEBUG: print("        <!-- TRIS chunk -->")
-    
+
     if PROGRESS_VERBOSE: progress = 0
-                
+
     for brus_id in dBrushId2Face.keys():
-        
+
         if PROGRESS_VERBOSE:
             progress += 1
             print("BRUS:",progress,"/",len(dBrushId2Face.keys()))
-        
+
         temp_buf = [write_int(brus_id)] #Brush ID
-        
+
         if DEBUG: print("        <brush id=", brus_id, ">")
-        
+
         if PROGRESS_VERBOSE: progress2 = 0
-                
+
         for face in dBrushId2Face[brus_id]:
-            
+
             if PROGRESS_VERBOSE:
                 progress2 += 1
                 if (progress2 % 50 == 0): print("    TRIS:",progress2,"/",len(dBrushId2Face[brus_id]))
@@ -1350,17 +1183,6 @@ def write_node_anim(num_frames):
     anim_buf = bytearray()
     temp_buf = bytearray()
 
-    """
-    print('num_frames:', num_frames)
-
-    # TODO: assimp import sometimes fails if animation is shorter than keys
-    max_frame = 0
-    for key in keys_stack:
-       max_frame = max(max_frame, key[0])
-
-    print('max_frame:', max_frame)
-    """
-
     temp_buf += write_int(0) #Flags
     temp_buf += write_int(num_frames) #Frames
     temp_buf += write_float(60) #FPS
@@ -1380,18 +1202,15 @@ def write_node_node(ibone):
 
     matrix = bone[BONE_PARENT_MATRIX]
     temp_buf.append(write_string(bone[BONE_ITSELF].name)) #Node Name
-    
-
 
     # FIXME: we should use the same matrix format everywhere to not require this
-    
     position = matrix.to_translation()
     if bone[BONE_PARENT]:
         temp_buf.append(write_float_triplet(-position[0], position[2], position[1]))
     else:
         temp_buf.append(write_float_triplet(position[0], position[2], position[1]))
-    
-    
+
+
     scale = matrix.to_scale()
     temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1]))
 
@@ -1423,8 +1242,7 @@ def write_node_bone(ibone):
     for ivert in range(len(vertex_groups)):
         if my_name in vertex_groups[ivert]:
             vert_influ = vertex_groups[ivert][my_name]
-            #if DEBUG: print("        <bone name=",bone_stack[ibone][BONE_ITSELF].name,"face_vertex_id=", ivert + iuv,
-            #                " weigth=", vert_influ[1] , "/>")
+
             temp_buf.append(write_int(ivert)) # Face Vertex ID
             temp_buf.append(write_float(vert_influ)) #Weight
 
@@ -1463,132 +1281,11 @@ def write_node_keys(ibone):
             quat.normalize()
 
             temp_buf.append(write_float_quad(quat.w, -quat.x, quat.y, quat.z))
-            #break
 
     keys_buf += write_chunk(b"KEYS",b"".join(temp_buf))
     temp_buf = []
 
     return keys_buf
-
-"""
-
-# ==== CONFIRM OPERATOR ====
-class B3D_Confirm_Operator(bpy.types.Operator):
-    bl_idname = ("screen.b3d_confirm")
-    bl_label = ("File Exists, Overwrite?")
-    
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
-    
-    def execute(self, context):
-        write_b3d_file(B3D_Confirm_Operator.filepath)
-        return {'FINISHED'}
-
-
-#class ObjectListItem(bpy.types.PropertyGroup):
-#    id = bpy.props.IntProperty(name="ID")
-#
-#bpy.utils.register_class(ObjectListItem)
-    
-# ==== EXPORT OPERATOR ====
-
-class B3D_Export_Operator(bpy.types.Operator):
-    bl_idname = ("screen.b3d_export")
-    bl_label = ("B3D Export")
-    filepath = bpy.props.StringProperty(subtype="FILE_PATH")
-
-    selected = bpy.props.BoolProperty(name="Export Selected Only", default=False)
-    vnormals = bpy.props.BoolProperty(name="Export Vertex Normals", default=True)
-    vcolors  = bpy.props.BoolProperty(name="Export Vertex Colors", default=True)
-    cameras  = bpy.props.BoolProperty(name="Export Cameras", default=False)
-    lights   = bpy.props.BoolProperty(name="Export Lights", default=False)
-    mipmap   = bpy.props.BoolProperty(name="Mipmap", default=False)
-    localsp  = bpy.props.BoolProperty(name="Use Local Space Coords", default=False)
-
-    overwrite_without_asking  = bpy.props.BoolProperty(name="Overwrite without asking", default=False)
-    
-    #skip_dialog = False
-    
-    #objects = bpy.props.CollectionProperty(type=ObjectListItem, options={'HIDDEN'})
-    
-    def invoke(self, context, event):
-        blend_filepath = context.blend_data.filepath
-        if not blend_filepath:
-            blend_filepath = "Untitled.b3d"
-        else:
-            blend_filepath = os.path.splitext(blend_filepath)[0] + ".b3d"
-        self.filepath = blend_filepath
-        
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-    
-    def execute(self, context):
-        
-        global b3d_parameters
-        global the_scene
-        b3d_parameters["export-selected"] = self.selected
-        b3d_parameters["vertex-normals" ] = self.vnormals
-        b3d_parameters["vertex-colors"  ] = self.vcolors
-        b3d_parameters["cameras"        ] = self.cameras
-        b3d_parameters["lights"         ] = self.lights
-        b3d_parameters["mipmap"         ] = self.mipmap
-        b3d_parameters["local-space"    ] = self.localsp
-        
-        the_scene = context.scene
-        
-        if self.filepath == "":
-            return {'FINISHED'}
-
-        if not self.filepath.endswith(".b3d"):
-            self.filepath += ".b3d"
-
-        print("EXPORT", self.filepath," vcolor = ", self.vcolors)
-            
-        obj_list = []
-        try:
-            # FIXME: silly and ugly hack, the list of objects to export is passed through
-            #        a custom scene property
-            obj_list = context.scene.obj_list
-        except:
-            pass
-        
-        if len(obj_list) > 0:
-          
-            #objlist = []
-            #for a in self.objects:
-            #    objlist.append(bpy.data.objects[a.id])
-            #
-            #write_b3d_file(self.filepath, obj_list)
-            
-            write_b3d_file(self.filepath, obj_list)
-        else:
-            if os.path.exists(self.filepath) and not self.overwrite_without_asking:
-                #self.report({'ERROR'}, "File Exists")
-                B3D_Confirm_Operator.filepath = self.filepath
-                bpy.ops.screen.b3d_confirm('INVOKE_DEFAULT')
-                return {'FINISHED'}
-            else:
-                write_b3d_file(self.filepath)
-        return {'FINISHED'}
-
-
-# Add to a menu
-def menu_func_export(self, context):
-    global the_scene
-    the_scene = context.scene
-    self.layout.operator(B3D_Export_Operator.bl_idname, text="B3D (.b3d)")
-
-def register():
-    bpy.types.INFO_MT_file_export.append(menu_func_export)
-    bpy.utils.register_module(__name__)
-
-def unregister():
-    bpy.types.INFO_MT_file_export.remove(menu_func_export)
-
-if __name__ == "__main__":
-    register()
-"""
 
 def save(operator,
          context, filepath="",
@@ -1615,4 +1312,3 @@ def save(operator,
         write_b3d_file(filepath, obj_list)
 
     return {'FINISHED'}
-

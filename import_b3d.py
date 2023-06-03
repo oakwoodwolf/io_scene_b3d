@@ -372,15 +372,3 @@ def load(operator,
              )
 
     return {'FINISHED'}
-
-#filepath = 'D:/Projects/github/io_scene_b3d/testing/gooey.b3d'
-filepath = 'C:/Games/GnomE/media/models/ded/ded.b3d'
-#filepath = 'C:/Games/GnomE/media/models/gnome/model.b3d'
-#filepath = 'C:/Games/GnomE/media/levels/level1.b3d'
-#filepath = 'C:/Games/GnomE/media/models/gnome/go.b3d'
-#filepath = 'C:/Games/GnomE/media/models/flag/flag.b3d'
-
-if __name__ == "__main__":
-    p = B3DDebugParser()
-    p.parse(filepath)
-    
