@@ -39,7 +39,7 @@ bl_info = {
     "description": "Exports a blender scene or object to the B3D (BLITZ3D) format",
     "author": "Diego 'GaNDaLDF' Parisi, MTLZ (is06), Joerg Henrichs, Marianne Gagnon, Joric",
     "version": (3,2),
-    "blender": (2, 8, 0),
+    "blender": (2, 80, 0),
     "api": 31236,
     "location": "File > Export",
     "warning": '', # used for warning icon and text in addons panel
@@ -196,7 +196,7 @@ def getFaces(obj_data):
 
 def getVertexColors(obj_data):
     # BMesh in blender 2.63 broke this
-    if bpy.app.version[1] >= 63:
+    if bpy.app.version_string >= "2.63":
         return tesselate_if_needed(obj_data).tessface_vertex_colors
     else:
         return obj_data.vertex_colors
@@ -633,7 +633,7 @@ def write_node(objects=[]):
                     scale_matrix = obj.matrix_world.copy()
                 
                 
-                if bpy.app.version[1] >= 62:
+                if bpy.app.version_string >= "2.62":
                     # blender 2.62 broke the API : Column-major access was changed to row-major access
                     tmp = mathutils.Vector([matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1]])
                     matrix[0][1] = matrix[0][2]
@@ -707,7 +707,7 @@ def write_node(objects=[]):
                         par_matrix = transform @ par_matrix @ transform
                         
                         # FIXME: that's ugly, find a clean way to change the matrix.....
-                        if bpy.app.version[1] >= 62:
+                        if bpy.app.version_string >= "2.62":
                             # blender 2.62 broke the API : Column-major access was changed to row-major access
                             # TODO: test me
                             par_matrix[1][3] = -par_matrix[1][3]
