@@ -514,305 +514,304 @@ def write_node(objects, settings):
             progress += 1
             print("NODE:",progress,"/",len(objects))
 
-        match obj.type:
-            case "MESH":
-                if DEBUG: print("    <mesh name=",obj.name,">")
+        if obj.type == "MESH":
+            if DEBUG: print("    <mesh name=",obj.name,">")
 
-                bone_stack = {}
-                keys_stack = []
+            bone_stack = {}
+            keys_stack = []
 
-                anim_data = None
+            anim_data = None
 
-                if settings.get("object_armature"):
-                    # check if this object has an armature modifier
-                    for curr_mod in obj.modifiers:
-                        if curr_mod.type == 'ARMATURE':
-                            arm = curr_mod.object
-                            if arm is not None:
+            if settings.get("object_armature"):
+                # check if this object has an armature modifier
+                for curr_mod in obj.modifiers:
+                    if curr_mod.type == 'ARMATURE':
+                        arm = curr_mod.object
+                        if arm is not None:
+                            anim_data = arm.animation_data
+
+                # check if this object has an armature parent (second way to do armature animations in blender)
+                if anim_data is None:
+                    if obj.parent:
+                        if obj.parent.type == "ARMATURE":
+                            arm = obj.parent
+                            if arm.animation_data:
                                 anim_data = arm.animation_data
 
-                    # check if this object has an armature parent (second way to do armature animations in blender)
-                    if anim_data is None:
-                        if obj.parent:
-                            if obj.parent.type == "ARMATURE":
-                                arm = obj.parent
-                                if arm.animation_data:
-                                    anim_data = arm.animation_data
+            if anim_data:
+                matrix = mathutils.Matrix()
 
-                if anim_data:
-                    matrix = mathutils.Matrix()
+                temp_buf.append(write_string(obj.name)) #Node Name
 
-                    temp_buf.append(write_string(obj.name)) #Node Name
+                position = matrix.to_translation()
+                temp_buf.append(write_float_triplet(position[0], position[1], position[2])) #Position X, Y, Z
 
-                    position = matrix.to_translation()
-                    temp_buf.append(write_float_triplet(position[0], position[1], position[2])) #Position X, Y, Z
+                scale = matrix.to_scale()
+                temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1])) #Scale X, Y, Z
 
-                    scale = matrix.to_scale()
-                    temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1])) #Scale X, Y, Z
+                if DEBUG: print("        <arm name=", obj.name, " loc=", -position[0], position[1], position[2], " scale=", scale[0], scale[1], scale[2], "/>")
 
-                    if DEBUG: print("        <arm name=", obj.name, " loc=", -position[0], position[1], position[2], " scale=", scale[0], scale[1], scale[2], "/>")
+                quat = matrix.to_quaternion()
+                quat.normalize()
 
-                    quat = matrix.to_quaternion()
-                    quat.normalize()
-
-                    temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+                temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+            else:
+                if settings.get("use_local_transform"):
+                    matrix = TRANS_MATRIX.copy()
+                    scale_matrix = mathutils.Matrix()
                 else:
-                    if settings.get("use_local_transform"):
-                        matrix = TRANS_MATRIX.copy()
-                        scale_matrix = mathutils.Matrix()
+                    matrix = obj.matrix_world @ TRANS_MATRIX
+                    scale_matrix = obj.matrix_world.copy()
+
+
+                if bpy.app.version_string >= "2.62":
+                    # blender 2.62 broke the API : Column-major access was changed to row-major access
+                    tmp = mathutils.Vector([matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1]])
+                    matrix[0][1] = matrix[0][2]
+                    matrix[1][1] = matrix[1][2]
+                    matrix[2][1] = matrix[2][2]
+                    matrix[3][1] = matrix[3][2]
+
+                    matrix[0][2] = tmp[0]
+                    matrix[1][2] = tmp[1]
+                    matrix[2][2] = tmp[2]
+                    matrix[3][2] = tmp[3]
+                else:
+                    tmp = mathutils.Vector(matrix[1])
+                    matrix[1] = matrix[2]
+                    matrix[2] = tmp
+
+                temp_buf.append(write_string(obj.name)) #Node Name
+
+                position = matrix.to_translation()
+
+                temp_buf.append(write_float_triplet(position[0], position[2], position[1]))
+
+                scale = scale_matrix.to_scale()
+                temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1]))
+
+                quat = matrix.to_quaternion()
+                quat.normalize()
+
+                temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+
+                if DEBUG:
+                    print("        <position>",position[0],position[2],position[1],"</position>")
+                    print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
+                    print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
+
+            if anim_data:
+                the_scene.frame_set(1,subframe=0.0)
+
+                arm_matrix = arm.matrix_world
+
+                if settings.get("use_local_transform"):
+                    arm_matrix = mathutils.Matrix()
+
+                def read_armature(arm_matrix,bone,parent = None):
+                    if (parent and not bone.parent.name == parent.name):
+                        return
+
+                    matrix = mathutils.Matrix(bone.matrix)
+
+                    if parent:
+                        a = (bone.matrix_local)
+                        b = (parent.matrix_local.inverted().to_4x4())
+
+                        par_matrix = b @ a
+
+                        transform = mathutils.Matrix([[1,0,0,0],[0,0,-1,0],[0,-1,0,0],[0,0,0,1]])
+                        par_matrix = transform @ par_matrix @ transform
+
+                        # FIXME: that's ugly, find a clean way to change the matrix.....
+                        if bpy.app.version_string >= "2.62":
+                            # blender 2.62 broke the API : Column-major access was changed to row-major access
+                            # TODO: test me
+                            par_matrix[1][3] = -par_matrix[1][3]
+                            par_matrix[2][3] = -par_matrix[2][3]
+                        else:
+                            par_matrix[3][1] = -par_matrix[3][1]
+                            par_matrix[3][2] = -par_matrix[3][2]
+
                     else:
-                        matrix = obj.matrix_world @ TRANS_MATRIX
-                        scale_matrix = obj.matrix_world.copy()
+                        m = arm_matrix @ bone.matrix_local
 
+                        par_matrix = m @ mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
 
-                    if bpy.app.version_string >= "2.62":
-                        # blender 2.62 broke the API : Column-major access was changed to row-major access
-                        tmp = mathutils.Vector([matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1]])
-                        matrix[0][1] = matrix[0][2]
-                        matrix[1][1] = matrix[1][2]
-                        matrix[2][1] = matrix[2][2]
-                        matrix[3][1] = matrix[3][2]
+                    bone_stack[bone.name] = [par_matrix,parent,bone]
 
-                        matrix[0][2] = tmp[0]
-                        matrix[1][2] = tmp[1]
-                        matrix[2][2] = tmp[2]
-                        matrix[3][2] = tmp[3]
-                    else:
-                        tmp = mathutils.Vector(matrix[1])
-                        matrix[1] = matrix[2]
-                        matrix[2] = tmp
+                    if bone.children:
+                        for child in bone.children: read_armature(arm_matrix,child,bone)
 
-                    temp_buf.append(write_string(obj.name)) #Node Name
+                for bone in arm.data.bones.values():
+                    if not bone.parent:
+                        read_armature(arm_matrix,bone)
 
-                    position = matrix.to_translation()
+                frame_count = first_frame
 
-                    temp_buf.append(write_float_triplet(position[0], position[2], position[1]))
+                last_frame = int(getArmatureAnimationEnd(arm))
+                num_frames = last_frame - first_frame
 
-                    scale = scale_matrix.to_scale()
-                    temp_buf.append(write_float_triplet(scale[0], scale[2], scale[1]))
+                while frame_count <= last_frame:
 
-                    quat = matrix.to_quaternion()
-                    quat.normalize()
+                    the_scene.frame_set(int(frame_count), subframe=0.0)
 
-                    temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
-
-                    if DEBUG:
-                        print("        <position>",position[0],position[2],position[1],"</position>")
-                        print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
-                        print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
-
-                if anim_data:
-                    the_scene.frame_set(1,subframe=0.0)
-
+                    if DEBUG: print("        <frame id=", int(frame_count), ">")
+                    arm_pose = arm.pose
                     arm_matrix = arm.matrix_world
 
-                    if settings.get("use_local_transform"):
-                        arm_matrix = mathutils.Matrix()
+                    transform = mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
+                    arm_matrix = transform @ arm_matrix
 
-                    def read_armature(arm_matrix,bone,parent = None):
-                        if (parent and not bone.parent.name == parent.name):
-                            return
+                    for bone_name in arm.data.bones.keys():
+                        bone_matrix = mathutils.Matrix(arm_pose.bones[bone_name].matrix)
 
-                        matrix = mathutils.Matrix(bone.matrix)
+                        for ibone in bone_stack:
 
-                        if parent:
-                            a = (bone.matrix_local)
-                            b = (parent.matrix_local.inverted().to_4x4())
+                            bone = bone_stack[ibone]
 
-                            par_matrix = b @ a
+                            if bone[BONE_ITSELF].name == bone_name:
 
-                            transform = mathutils.Matrix([[1,0,0,0],[0,0,-1,0],[0,-1,0,0],[0,0,0,1]])
-                            par_matrix = transform @ par_matrix @ transform
+                                if DEBUG: print("            <bone id=",ibone,"name=",bone_name,">")
 
-                            # FIXME: that's ugly, find a clean way to change the matrix.....
-                            if bpy.app.version_string >= "2.62":
-                                # blender 2.62 broke the API : Column-major access was changed to row-major access
-                                # TODO: test me
-                                par_matrix[1][3] = -par_matrix[1][3]
-                                par_matrix[2][3] = -par_matrix[2][3]
-                            else:
-                                par_matrix[3][1] = -par_matrix[3][1]
-                                par_matrix[3][2] = -par_matrix[3][2]
-
-                        else:
-                            m = arm_matrix @ bone.matrix_local
-
-                            par_matrix = m @ mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
-
-                        bone_stack[bone.name] = [par_matrix,parent,bone]
-
-                        if bone.children:
-                            for child in bone.children: read_armature(arm_matrix,child,bone)
-
-                    for bone in arm.data.bones.values():
-                        if not bone.parent:
-                            read_armature(arm_matrix,bone)
-
-                    frame_count = first_frame
-
-                    last_frame = int(getArmatureAnimationEnd(arm))
-                    num_frames = last_frame - first_frame
-
-                    while frame_count <= last_frame:
-
-                        the_scene.frame_set(int(frame_count), subframe=0.0)
-
-                        if DEBUG: print("        <frame id=", int(frame_count), ">")
-                        arm_pose = arm.pose
-                        arm_matrix = arm.matrix_world
-
-                        transform = mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
-                        arm_matrix = transform @ arm_matrix
-
-                        for bone_name in arm.data.bones.keys():
-                            bone_matrix = mathutils.Matrix(arm_pose.bones[bone_name].matrix)
-
-                            for ibone in bone_stack:
-
-                                bone = bone_stack[ibone]
-
-                                if bone[BONE_ITSELF].name == bone_name:
-
-                                    if DEBUG: print("            <bone id=",ibone,"name=",bone_name,">")
-
-                                    # if has parent
-                                    if bone[BONE_PARENT]:
-                                        par_matrix = mathutils.Matrix(arm_pose.bones[bone[BONE_PARENT].name].matrix)
-                                        bone_matrix = par_matrix.inverted() @ bone_matrix
-                                    else:
-                                        if settings.get("use_local_transform"):
-                                            bone_matrix = bone_matrix*mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
-                                        else:
-                                            bone_matrix = arm_matrix @ bone_matrix
-
-                                    bone_sca = bone_matrix.to_scale()
-                                    bone_loc = bone_matrix.to_translation()
-
-                                    # FIXME: silly tweaks to resemble the Blender 2.4 exporter output
+                                # if has parent
+                                if bone[BONE_PARENT]:
+                                    par_matrix = mathutils.Matrix(arm_pose.bones[bone[BONE_PARENT].name].matrix)
+                                    bone_matrix = par_matrix.inverted() @ bone_matrix
+                                else:
                                     if settings.get("use_local_transform"):
-                                        bone_rot = bone_matrix.to_quaternion()
-                                        bone_rot.normalize()
-
-                                        if not bone[BONE_PARENT]:
-                                            tmp = bone_rot.z
-                                            bone_rot.z = bone_rot.y
-                                            bone_rot.y = tmp
-
-                                            bone_rot.x = -bone_rot.x
-                                        else:
-                                            tmp = bone_loc.z
-                                            bone_loc.z = bone_loc.y
-                                            bone_loc.y = tmp
-
+                                        bone_matrix = bone_matrix*mathutils.Matrix([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
                                     else:
-                                        bone_rot = bone_matrix.to_quaternion()
-                                        bone_rot.normalize()
+                                        bone_matrix = arm_matrix @ bone_matrix
 
-                                    keys_stack.append([frame_count - first_frame+1, bone_name, bone_loc, bone_sca, bone_rot])
-                                    if DEBUG: print("                <loc>", bone_loc, "</loc>")
-                                    if DEBUG: print("                <rot>", bone_rot, "</rot>")
-                                    if DEBUG: print("                <scale>", bone_sca, "</scale>")
-                                    if DEBUG: print("            </bone>")
+                                bone_sca = bone_matrix.to_scale()
+                                bone_loc = bone_matrix.to_translation()
 
-                        frame_count += 1
+                                # FIXME: silly tweaks to resemble the Blender 2.4 exporter output
+                                if settings.get("use_local_transform"):
+                                    bone_rot = bone_matrix.to_quaternion()
+                                    bone_rot.normalize()
 
-                        if DEBUG: print("        </frame>")
+                                    if not bone[BONE_PARENT]:
+                                        tmp = bone_rot.z
+                                        bone_rot.z = bone_rot.y
+                                        bone_rot.y = tmp
 
-                temp_buf.append(write_node_mesh(settings, obj, anim_data)) #NODE MESH
+                                        bone_rot.x = -bone_rot.x
+                                    else:
+                                        tmp = bone_loc.z
+                                        bone_loc.z = bone_loc.y
+                                        bone_loc.y = tmp
 
-                if anim_data:
-                    temp_buf.append(write_node_anim(num_frames)) #NODE ANIM
+                                else:
+                                    bone_rot = bone_matrix.to_quaternion()
+                                    bone_rot.normalize()
 
-                    for ibone in bone_stack:
-                        if not bone_stack[ibone][BONE_PARENT]:
-                            temp_buf.append(write_node_node(settings, ibone)) #NODE NODE
+                                keys_stack.append([frame_count - first_frame+1, bone_name, bone_loc, bone_sca, bone_rot])
+                                if DEBUG: print("                <loc>", bone_loc, "</loc>")
+                                if DEBUG: print("                <rot>", bone_rot, "</rot>")
+                                if DEBUG: print("                <scale>", bone_sca, "</scale>")
+                                if DEBUG: print("            </bone>")
 
-                obj_count += 1
+                    frame_count += 1
 
-                if len(temp_buf) > 0:
-                    node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
-                    temp_buf = []
+                    if DEBUG: print("        </frame>")
 
-                if DEBUG: print("    </mesh>")
-            case "CAMERA":
-                data = obj.data
+            temp_buf.append(write_node_mesh(settings, obj, anim_data)) #NODE MESH
 
-                if data.type == "ORTHO":
-                    cam_type = 2
-                    cam_zoom = round(data.scale,4)
-                elif data.type == "PERSP":
-                    cam_type = 1
-                    cam_zoom = round(data.lens,4)
-                else: # Panoramic cameras arent supported
-                    continue
+            if anim_data:
+                temp_buf.append(write_node_anim(num_frames)) #NODE ANIM
 
-                cam_near = round(data.clip_start,4)
-                cam_far = round(data.clip_end,4)
+                for ibone in bone_stack:
+                    if not bone_stack[ibone][BONE_PARENT]:
+                        temp_buf.append(write_node_node(settings, ibone)) #NODE NODE
 
-                node_name = ("CAMS"+"\n%s"%obj.name+"\n%s"%cam_type+\
-                             "\n%s"%cam_zoom+"\n%s"%cam_near+"\n%s"%cam_far)
-                temp_buf.append(write_string(node_name)) #Node Name
+            obj_count += 1
 
-                matrix = obj.matrix_world @ TRANS_MATRIX
+            if len(temp_buf) > 0:
+                node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
+                temp_buf = []
 
-                position = matrix.to_translation()
-                temp_buf.append(write_float_triplet(position[0], position[1], position[2]))
+            if DEBUG: print("    </mesh>")
+        elif obj.type == "CAMERA":
+            data = obj.data
 
-                scale = matrix.to_scale()
-                temp_buf.append(write_float_triplet(scale[0], scale[1], scale[2]))
+            if data.type == "ORTHO":
+                cam_type = 2
+                cam_zoom = round(data.scale,4)
+            elif data.type == "PERSP":
+                cam_type = 1
+                cam_zoom = round(data.lens,4)
+            else: # Panoramic cameras arent supported
+                continue
 
-                quat = matrix.to_quaternion()
-                quat.normalize()
+            cam_near = round(data.clip_start,4)
+            cam_far = round(data.clip_end,4)
 
-                temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+            node_name = ("CAMS"+"\n%s"%obj.name+"\n%s"%cam_type+\
+                            "\n%s"%cam_zoom+"\n%s"%cam_near+"\n%s"%cam_far)
+            temp_buf.append(write_string(node_name)) #Node Name
 
-                if DEBUG:
-                    print("        <position>",position[0],position[2],position[1],"</position>")
-                    print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
-                    print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
+            matrix = obj.matrix_world @ TRANS_MATRIX
 
-                if len(temp_buf) > 0:
-                    node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
-                    temp_buf = []
-            case "LIGHT":
-                data = obj.data
+            position = matrix.to_translation()
+            temp_buf.append(write_float_triplet(position[0], position[1], position[2]))
 
-                if data.type == "POINT":
-                    lig_type = 2
-                elif data.type == "SPOT":
-                    lig_type = 3
-                else:
-                    lig_type = 1
+            scale = matrix.to_scale()
+            temp_buf.append(write_float_triplet(scale[0], scale[1], scale[2]))
 
-                lig_angle = round(getattr(data, "spot_size", 0) or 0,4)
-                lig_color = (int(data.color[2]*255) |(int(data.color[1]*255) << 8) | (int(data.color[0]*255) << 16))
-                lig_range = round(data.distance,4)
+            quat = matrix.to_quaternion()
+            quat.normalize()
 
-                node_name = ("LIGS"+"\n%s"%obj.name+"\n%s"%lig_type+\
-                             "\n%s"%lig_angle+"\n%s"%lig_color+"\n%s"%lig_range)
-                temp_buf.append(write_string(node_name)) #Node Name
+            temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
 
-                matrix = obj.matrix_world @ TRANS_MATRIX
+            if DEBUG:
+                print("        <position>",position[0],position[2],position[1],"</position>")
+                print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
+                print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
 
-                position = matrix.to_translation()
-                temp_buf.append(write_float_triplet(position[0], position[1], position[2]))
+            if len(temp_buf) > 0:
+                node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
+                temp_buf = []
+        elif obj.type == "LIGHT":
+            data = obj.data
 
-                scale = matrix.to_scale()
-                temp_buf.append(write_float_triplet(scale[0], scale[1], scale[2]))
+            if data.type == "POINT":
+                lig_type = 2
+            elif data.type == "SPOT":
+                lig_type = 3
+            else:
+                lig_type = 1
 
-                quat = matrix.to_quaternion()
-                quat.normalize()
+            lig_angle = round(getattr(data, "spot_size", 0) or 0,4)
+            lig_color = (int(data.color[2]*255) |(int(data.color[1]*255) << 8) | (int(data.color[0]*255) << 16))
+            lig_range = round(data.distance,4)
 
-                temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+            node_name = ("LIGS"+"\n%s"%obj.name+"\n%s"%lig_type+\
+                            "\n%s"%lig_angle+"\n%s"%lig_color+"\n%s"%lig_range)
+            temp_buf.append(write_string(node_name)) #Node Name
 
-                if DEBUG:
-                    print("        <position>",position[0],position[2],position[1],"</position>")
-                    print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
-                    print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
+            matrix = obj.matrix_world @ TRANS_MATRIX
 
-                if len(temp_buf) > 0:
-                    node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
-                    temp_buf = []
+            position = matrix.to_translation()
+            temp_buf.append(write_float_triplet(position[0], position[1], position[2]))
+
+            scale = matrix.to_scale()
+            temp_buf.append(write_float_triplet(scale[0], scale[1], scale[2]))
+
+            quat = matrix.to_quaternion()
+            quat.normalize()
+
+            temp_buf.append(write_float_quad(quat.w, quat.x, quat.z, quat.y))
+
+            if DEBUG:
+                print("        <position>",position[0],position[2],position[1],"</position>")
+                print("        <scale>",scale[0],scale[1],scale[2],"</scale>")
+                print("        <rotation>", quat.w, quat.x, quat.y, quat.z, "</rotation>")
+
+            if len(temp_buf) > 0:
+                node_buf.append(write_chunk(b"NODE",b"".join(temp_buf)))
+                temp_buf = []
 
     if len(node_buf) > 0:
         if exp_root:
