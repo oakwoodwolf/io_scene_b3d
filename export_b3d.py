@@ -905,7 +905,10 @@ def write_node_mesh_vrts(settings, obj, data, arm_action):
                 my_uvs[f.index].append(uv)
 
     uv_layers_count = len(data.uv_layers)
-    data.calc_normals_split() # ensure loop normals are valid
+
+    if hasattr(data, "calc_normals_split"):
+        data.calc_normals_split() # ensure loop normals are valid
+
     for face in data.polygons:
         if DEBUG: print("        <!-- Face",face.index,"-->")
 
