@@ -190,10 +190,20 @@ def import_mesh(node, parent):
 
     # assign uv coordinates
     bpymesh = ob.data
-    uvs = [(0,0) if len(uv)==0 else (uv[0], 1-uv[1]) for uv in node.uvs]
-    uvlist = [i for poly in bpymesh.polygons for vidx in poly.vertices for i in uvs[vidx]]
-    bpymesh.uv_layers.new().data.foreach_set('uv', uvlist)
+    uvs0 = [(0,0) if len(uv) < 2 else (uv[0], 1-uv[1]) for uv in node.uvs]
+    uvs1 = [(0,0) if len(uv) < 4 else (uv[2], 1-uv[3]) for uv in node.uvs]
 
+    uvlist0 = [i for poly in bpymesh.polygons for vidx in poly.vertices for i in uvs0[vidx]]
+    uvlist1 = [i for poly in bpymesh.polygons for vidx in poly.vertices for i in uvs1[vidx]]
+    bpymesh.uv_layers.new(name="UV0").data.foreach_set('uv', uvlist0)
+    bpymesh.uv_layers.new(name="UV1").data.foreach_set('uv', uvlist1)
+    # assign color attributes
+    colors = []
+    for poly in bpymesh.polygons:
+        for cidx in poly.vertices:
+            rgba = node.rgba[cidx] if cidx < len(node.rgba) else (1.0, 1.0, 1.0, 1.0)  # fallback white
+            colors.extend(rgba)
+    bpymesh.color_attributes.new(name="Col", type='FLOAT_COLOR', domain='CORNER').data.foreach_set("color", colors)
     # adding object materials (insert-ordered)
     for key, value in material_mapping.items():
         ob.data.materials.append(bpy.data.materials[value])
@@ -334,7 +344,7 @@ def load_b3d(filepath,
         material = bpy.data.materials.new(mat.name)
         material_mapping[i] = material.name
         material.diffuse_color = mat.rgba
-        material.blend_method = 'MULTIPLY' if mat.rgba[3] < 1.0 else 'OPAQUE'
+        material.blend_method = 'BLEND' if mat.rgba[3] < 1.0 else 'OPAQUE'
 
         tid = mat.tids[0] if len(mat.tids) else -1
 

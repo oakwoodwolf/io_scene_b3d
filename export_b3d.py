@@ -157,9 +157,8 @@ def write_b3d_file(filename, settings, objects=[]):
 
     print("Exported in", (end - start))
 
-# Keeping this function around as the vertex_colors API is deprecated and may disappear in the future
 def getVertexColors(obj_data):
-    return obj_data.vertex_colors
+    return obj_data.color_attributes
 
 def getFaceImage(face):
     try:
@@ -376,7 +375,7 @@ def write_brus(objects, settings):
                             mat_colb = mat_data.diffuse_color[2]
                             mat_alpha = 1.0 # mat_data.alpha # 2.8 fail!
                             mat_name = mat_data.name
-
+                            mat_shine = abs(-1.0 + mat_data.roughness)
                             if not mat_name in brus_stack:
                                 brus_stack.append(mat_name)
                                 temp_buf += write_string(mat_name) #Brush Name
@@ -384,7 +383,7 @@ def write_brus(objects, settings):
                                 temp_buf += write_float(mat_colg)  #Green
                                 temp_buf += write_float(mat_colb)  #Blue
                                 temp_buf += write_float(mat_alpha) #Alpha
-                                temp_buf += write_float(0)         #Shininess
+                                temp_buf += write_float(mat_shine)         #Shininess
                                 temp_buf += write_int(1)           #Blend
                                 if settings.get("export_colors") and len(getVertexColors(data)):
                                     temp_buf += write_int(2) #Fx
@@ -421,7 +420,6 @@ def write_brus(objects, settings):
                         temp_buf += write_float(1) #Alpha
                         temp_buf += write_float(0) #Shininess
                         temp_buf += write_int(1)   #Blend
-
                         if DEBUG: print("    <brush id=",len(brus_stack),">")
 
                         if settings.get("export_colors") and len(getVertexColors(data)) > 0:
@@ -946,19 +944,14 @@ def write_node_mesh_vrts(settings, obj, data, arm_action):
 
             if settings.get("export_colors") and len(getVertexColors(data)) > 0:
                 vertex_colors = getVertexColors(data)
-                if vertex_id == 0:
-                    vcolor = vertex_colors[0].data[face.index].color1
-                elif vertex_id == 1:
-                    vcolor = vertex_colors[0].data[face.index].color2
-                elif vertex_id == 2:
-                    vcolor = vertex_colors[0].data[face.index].color3
-                elif vertex_id == 3:
-                    vcolor = vertex_colors[0].data[face.index].color4
-
-                temp_buf.append(write_float_quad(vcolor.r, #R
-                                                 vcolor.g, #G
-                                                 vcolor.b, #B
-                                                 1.0))     #A (FIXME?)
+                color_data = vertex_colors[0].data
+                # get the color for this face corner
+                vcolor = color_data[face.loop_start + vertex_id].color
+                r, g, b, a = vcolor
+                temp_buf.append(write_float_quad(r, #R
+                                                 g, #G
+                                                 b, #B
+                                                 a))     #A (FIXME?)
 
             for vg in obj.vertex_groups:
                 w = 0.0
@@ -975,8 +968,9 @@ def write_node_mesh_vrts(settings, obj, data, arm_action):
             # uv_layers_count is from data.uv_layers
 
             for iuvlayer in range(uv_layers_count):
-                uv = my_uvs[face.index][vertex_id]
-                temp_buf.append(write_float_couple(uv[0], 1-uv[1]) )
+                uvlayer = data.uv_layers[iuvlayer]
+                uv = uvlayer.data[loop_index].uv
+                temp_buf.append(write_float_couple(uv[0], 1 - uv[1]))
 
     if DEBUG: print("")
 

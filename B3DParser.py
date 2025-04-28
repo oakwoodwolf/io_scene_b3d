@@ -61,7 +61,7 @@ class B3DParser:
                     pos = self.f(2)
                     scale = self.f(2)
                     rot = self.f(1)[0]
-                    data.append(dotdict({'name':name,'position':pos,'scale':scale,'rotation':rot}))
+                    data.append(dotdict({'name':name,'position':pos,'scale':scale,'rotation':rot, 'flags':flags,'blend':blend}))
                 self.cb_data(chunk,{'textures':data})
 
             elif chunk=='BRUS':
@@ -229,5 +229,7 @@ if __name__ == '__main__':
     data = B3DTree().parse(filepath) # json tree
     import json
     print(json.dumps(data, indent=1))
+    #f = open(filepath+".json", "w")
+    #f.write(json.dumps(data, indent=1))
     #dump(data)
 
