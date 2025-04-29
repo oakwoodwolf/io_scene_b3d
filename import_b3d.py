@@ -330,13 +330,16 @@ def load_b3d(filepath,
 
     # load images
     images = {}
+    imageflags = {}
     dirname = os.path.dirname(filepath)
     for i, texture in enumerate(data['textures'] if 'textures' in data else []):
         texture_name = os.path.basename(texture['name'])
         for mat in data.materials:
-            if mat.tids[0]==i:
-                images[i] = (texture_name, load_image(texture_name, dirname, check_existing=True,
-                    place_holder=False, recursive=IMAGE_SEARCH))
+            for x in range(len(mat.tids)):
+                if mat.tids[x]==i:
+                    images[i] = (texture_name, load_image(texture_name, dirname, check_existing=True,
+                        place_holder=False, recursive=IMAGE_SEARCH))
+                    imageflags[i] = texture['flags'] if 'flags' in texture else []
 
     # create materials
     material_mapping = {}
@@ -344,18 +347,41 @@ def load_b3d(filepath,
         material = bpy.data.materials.new(mat.name)
         material_mapping[i] = material.name
         material.diffuse_color = mat.rgba
+        if mat.fx & 16:
+            material.use_backface_culling = False
+            material.use_backface_culling_shadow = False
+        else:
+            material.use_backface_culling = True
+            material.use_backface_culling_shadow = True
         material.blend_method = 'BLEND' if mat.rgba[3] < 1.0 else 'OPAQUE'
 
         tid = mat.tids[0] if len(mat.tids) else -1
 
         if tid in images:
             name, image = images[tid]
+            flags = imageflags[tid]
+
             texture = bpy.data.textures.new(name=name, type='IMAGE')
             material.use_nodes = True
             bsdf = material.node_tree.nodes["Principled BSDF"]
             texImage = material.node_tree.nodes.new('ShaderNodeTexImage')
             texImage.image = image
+            if flags & 64:
+                texImage.projection = 'SPHERE'
+            elif flags & 128:
+                texImage.projection = 'BOX'
+            if flags & 48:
+                texImage.extension = 'EXTEND'
+            elif flags & 24576:
+                texImage.extension = 'MIRROR'
             material.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
+            if (flags & 4):
+                material.blend_method = 'CLIP'
+                material.node_tree.links.new(bsdf.inputs['Alpha'], texImage.outputs['Alpha'])
+            elif (flags & 2):
+                material.blend_method = 'BLEND'
+                material.node_tree.links.new(bsdf.inputs['Alpha'], texImage.outputs['Alpha'])
+
 
     global imported_armatures, weighting
     imported_armatures = []

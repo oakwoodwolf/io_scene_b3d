@@ -69,9 +69,9 @@ the_scene = None
 TRANS_MATRIX = mathutils.Matrix([[1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])
 BONE_TRANS_MATRIX = mathutils.Matrix([[-1,0,0,0],[0,0,-1,0],[0,-1,0,0],[0,0,0,1]])
 
-DEBUG = False
+DEBUG = True
 PROGRESS = True
-PROGRESS_VERBOSE = False
+PROGRESS_VERBOSE = True
 
 tesselated_objects = {}
 
@@ -245,7 +245,23 @@ def write_texs(objects, settings):
                                 enable_mipmaps=8
                             else:
                                 enable_mipmaps=0
-                            texture_flags[obj_count][iuvlayer] = tex_flag | enable_mipmaps
+                            tiling = 0
+                            mapping = 0
+                            material = bpy.data.materials[face.material_index]
+                            if material.node_tree:
+                                texImage = material.node_tree.nodes["Image Texture"]
+                                if texImage:
+                                    if texImage.extension is 'EXTEND':
+                                        tiling = 48
+                                    elif texImage.extension is 'MIRROR':
+                                        tiling = 24578
+                                        
+                                    if texImage.projection is 'SPHERE':
+                                        mapping = 64
+                                    elif texImage.projection is 'BOX':
+                                        mapping = 128
+                                    
+                            texture_flags[obj_count][iuvlayer] = tex_flag + enable_mipmaps + tiling + mapping
                             set_wrote = 1
 
             for face in data.polygons:
@@ -376,6 +392,10 @@ def write_brus(objects, settings):
                             mat_alpha = 1.0 # mat_data.alpha # 2.8 fail!
                             mat_name = mat_data.name
                             mat_shine = abs(-1.0 + mat_data.roughness)
+                            mat_fx = 0
+                            if mat_data.use_backface_culling is True:
+                                mat_fx += 16
+                                
                             if not mat_name in brus_stack:
                                 brus_stack.append(mat_name)
                                 temp_buf += write_string(mat_name) #Brush Name
@@ -386,10 +406,8 @@ def write_brus(objects, settings):
                                 temp_buf += write_float(mat_shine)         #Shininess
                                 temp_buf += write_int(1)           #Blend
                                 if settings.get("export_colors") and len(getVertexColors(data)):
-                                    temp_buf += write_int(2) #Fx
-                                else:
-                                    temp_buf += write_int(0) #Fx
-
+                                    mat_fx += 2 #Fx
+                                temp_buf += write_int(mat_fx)
                                 for i in face_stack:
                                     temp_buf += write_int(i) #Texture ID
                     else:
@@ -409,29 +427,42 @@ def write_brus(objects, settings):
                                 for i in face_stack:
                                     temp_buf += write_int(i) #Texture ID
                 else: # img_found
+                    if data.materials:
+                        if data.materials[face.material_index]:
+                            mat_data = data.materials[face.material_index]
+                            mat_colr = mat_data.diffuse_color[0]
+                            mat_colg = mat_data.diffuse_color[1]
+                            mat_colb = mat_data.diffuse_color[2]
+                            mat_alpha = 1.0 # mat_data.alpha # 2.8 fail!
+                            mat_name = mat_data.name
+                            mat_shine = abs(-1.0 + mat_data.roughness)
+                            mat_fx = 0
+                            if mat_data.use_backface_culling is True:
+                                mat_fx += 16
+                                
+                            if not face_stack in brus_stack:
+                                brus_stack.append(face_stack)
+                                mat_count += 1
+                                temp_buf += write_string(mat_name) #Brush Name
+                                temp_buf += write_float(mat_colr) #Red
+                                temp_buf += write_float(mat_colg) #Green
+                                temp_buf += write_float(mat_colb) #Blue
+                                temp_buf += write_float(mat_alpha) #Alpha
+                                temp_buf += write_float(mat_shine) #Shininess
+                                temp_buf += write_int(1)   #Blend
+                                if DEBUG: print("    <brush id=",len(brus_stack),">")
 
-                    if not face_stack in brus_stack:
-                        brus_stack.append(face_stack)
-                        mat_count += 1
-                        temp_buf += write_string("Brush.%.3i"%mat_count) #Brush Name
-                        temp_buf += write_float(1) #Red
-                        temp_buf += write_float(1) #Green
-                        temp_buf += write_float(1) #Blue
-                        temp_buf += write_float(1) #Alpha
-                        temp_buf += write_float(0) #Shininess
-                        temp_buf += write_int(1)   #Blend
-                        if DEBUG: print("    <brush id=",len(brus_stack),">")
+                                if settings.get("export_colors") and len(getVertexColors(data)) > 0:
+                                    mat_fx += 2 #Fx
+                               
 
-                        if settings.get("export_colors") and len(getVertexColors(data)) > 0:
-                            temp_buf += write_int(2) #Fx
-                        else:
-                            temp_buf += write_int(0) #Fx
+                                temp_buf += write_int(mat_fx) #Fx
 
-                        for i in face_stack:
-                            temp_buf += write_int(i) #Texture ID
-                            if DEBUG: print("        <texture id=",i,">")
+                                for i in face_stack:
+                                    temp_buf += write_int(i) #Texture ID
+                                    if DEBUG: print("        <texture id=",i,">")
 
-                        if DEBUG: print("    </brush>")
+                                if DEBUG: print("    </brush>")
 
                 if DEBUG: print("")
 
