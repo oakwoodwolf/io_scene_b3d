@@ -160,14 +160,25 @@ def write_b3d_file(filename, settings, objects=[]):
 def getVertexColors(obj_data):
     return obj_data.color_attributes
 
-def getFaceImage(face):
+def getFaceImage(face, obj):
     try:
-        material = bpy.data.materials[face.material_index]
-        texImage = material.node_tree.nodes["Image Texture"]
-        return texImage.image
-    except:
-        pass
+        mat_index = face.material_index
+        if mat_index >= len(obj.data.materials):
+            return None
+
+        material = obj.data.materials[mat_index]
+        if not material or not material.use_nodes:
+            return None
+
+        for node in material.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                return node.image
+
+    except Exception as e:
+        print(f"getFaceImage error: {e}")
+    
     return None
+
 
 # ==== Write TEXS Chunk ====
 def write_texs(objects, settings):
@@ -276,7 +287,7 @@ def write_texs(objects, settings):
 
                         #if DEBUG: print("<uv face=", face.index, ">")
 
-                        img = getFaceImage(face)
+                        img = getFaceImage(face,obj)
                         if img:
                             if img.filepath in trimmed_paths:
                                 img_name = trimmed_paths[img.filepath]
@@ -347,38 +358,36 @@ def write_brus(objects, settings):
             for face in data.polygons:
                 face_stack = []
 
-                for iuvlayer,uvlayer in enumerate(uv_textures):
-                    if iuvlayer < 8:
+                for i, iuvlayer in enumerate(uv_textures):
+                    if i < 8:
 
                         img_id = -1
 
-                        if face.index >= len(uv_textures[iuvlayer].data):
-                            continue
+                      #  if face.index >= len(uv_textures[iuvlayer].data):
+                      #      continue
 
-                        img = getFaceImage(face)
+                        img = getFaceImage(face,obj)
 
-                        if not img:
-                            continue
+                        if img:
+                            img_found = 1
 
-                        img_found = 1
+                            if img.filepath in trimmed_paths:
+                                img_name = trimmed_paths[img.filepath]
+                            else:
+                                img_name = os.path.basename(img.filepath)
+                                trimmed_paths[img.filepath] = img_name
 
-                        if img.filepath in trimmed_paths:
-                            img_name = trimmed_paths[img.filepath]
-                        else:
-                            img_name = os.path.basename(img.filepath)
-                            trimmed_paths[img.filepath] = img_name
+                            if DEBUG: print("    <!-- Building FACE 'stack' -->")
 
-                        if DEBUG: print("    <!-- Building FACE 'stack' -->")
+                            if img_name in texs_stack:
+                                img_id = texs_stack[img_name][TEXTURE_ID]
 
-                        if img_name in texs_stack:
-                            img_id = texs_stack[img_name][TEXTURE_ID]
-
-                        face_stack.insert(iuvlayer,img_id)
-                        if DEBUG: print("    <uv face=",face.index,"layer=", iuvlayer, " imgid=", img_id, "/>")
+                            face_stack.insert(i,img_id)
+                            if DEBUG: print("    <uv face=",face.index,"layer=", iuvlayer, " imgid=", img_id, "/>")
 
                 for i in range(len(face_stack),texture_count):
                     face_stack.append(-1)
-
+                img_found = any(i >= 0 for i in face_stack)
 
                 if DEBUG: print("    <!-- Writing chunk -->")
 
@@ -413,7 +422,9 @@ def write_brus(objects, settings):
                     else:
                         if settings.get("export_colors") and len(getVertexColors(data)) > 0:
                             if not face_stack in brus_stack:
-                                brus_stack.append(face_stack)
+                                face_stack_key = tuple(face_stack)
+                                if face_stack_key not in brus_stack:
+                                    brus_stack.append(face_stack_key)
                                 mat_count += 1
                                 temp_buf += write_string("Brush.%.3i"%mat_count) #Brush Name
                                 temp_buf += write_float(1) #Red
@@ -869,7 +880,7 @@ def write_node_mesh(settings, obj, arm_action):
 
     temp_buf += write_int(-1) #Brush ID
     temp_buf += write_node_mesh_vrts(settings, obj, data, arm_action) #NODE MESH VRTS
-    temp_buf += write_node_mesh_tris(data) #NODE MESH TRIS
+    temp_buf += write_node_mesh_tris(obj,data) #NODE MESH TRIS
 
     if len(temp_buf) > 0:
         mesh_buf += write_chunk(b"MESH",temp_buf)
@@ -1012,7 +1023,7 @@ def write_node_mesh_vrts(settings, obj, data, arm_action):
     return vrts_buf
 
 # ==== Write NODE MESH TRIS Chunk ====
-def write_node_mesh_tris(data):
+def write_node_mesh_tris(obj,data):
     global texture_count
 
     # An dictoriary that maps all brush-ids to a list of faces
@@ -1021,7 +1032,6 @@ def write_node_mesh_tris(data):
     dBrushId2Face = {}
 
     if DEBUG: print("")
-
     for face in data.polygons:
         img_found = 0
         face_stack = []
@@ -1035,7 +1045,7 @@ def write_node_mesh_tris(data):
 
                 img_id = -1
 
-                img = getFaceImage(face)
+                img = getFaceImage(face,obj)
 
                 if img:
                     if img.filepath in trimmed_paths:
