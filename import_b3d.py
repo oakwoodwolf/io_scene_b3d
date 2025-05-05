@@ -320,32 +320,179 @@ def load_b3d(filepath,
 
     # load images
     images = {}
+    imageflags = {}
+    blends = {}
     dirname = os.path.dirname(filepath)
     for i, texture in enumerate(data['textures'] if 'textures' in data else []):
         texture_name = os.path.basename(texture['name'])
         for mat in data.materials:
-            if mat.tids[0]==i:
-                images[i] = (texture_name, load_image(texture_name, dirname, check_existing=True,
-                    place_holder=False, recursive=IMAGE_SEARCH))
+            for x in range(len(mat.tids)):
+                if mat.tids[x]==i:
+                    images[i] = (texture_name, load_image(texture_name, dirname, check_existing=True,
+                        place_holder=False, recursive=IMAGE_SEARCH))
+                    imageflags[i] = texture['flags'] if 'flags' in texture else []
+                    blends[i] = texture['blend'] if 'blend' in texture else []
 
     # create materials
     material_mapping = {}
     for i, mat in enumerate(data.materials if 'materials' in data else []):
         material = bpy.data.materials.new(mat.name)
-        material_mapping[i] = material.name
+        material.use_nodes = True
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
+        nodes.clear()
+
+        output = nodes.new(type="ShaderNodeOutputMaterial")
+        output.location = (1000, 0)
+
+        bsdf = nodes.new(type="ShaderNodeBsdfPrincipled")
+        bsdf.location = (600, 0)
+        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+        uv0_node = nodes.new('ShaderNodeUVMap')
+        uv0_node.uv_map = "UV0" 
+        uv1_node = nodes.new('ShaderNodeUVMap')
+        uv1_node.uv_map = "UV1" 
+
         material.diffuse_color = mat.rgba
-        material.blend_method = 'MULTIPLY' if mat.rgba[3] < 1.0 else 'OPAQUE'
+        if mat.fx & 16:
+            material.use_backface_culling = False
+            material.use_backface_culling_shadow = False
+        else:
+            material.use_backface_culling = True
+            material.use_backface_culling_shadow = True
+        material.blend_method = 'BLEND' if mat.rgba[3] < 1.0 else 'OPAQUE'
 
-        tid = mat.tids[0] if len(mat.tids) else -1
+        x_offset = 0
+        y_offset = 0
+        prev_mix_node = None
+        for t in range(8):
+            if t >= len(mat.tids):
+                continue
 
-        if tid in images:
+            tid = mat.tids[t]
+            if tid not in images:
+                continue
+
             name, image = images[tid]
-            texture = bpy.data.textures.new(name=name, type='IMAGE')
-            material.use_nodes = True
-            bsdf = material.node_tree.nodes["Principled BSDF"]
-            texImage = material.node_tree.nodes.new('ShaderNodeTexImage')
-            texImage.image = image
-            material.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
+            flags = imageflags[tid] if tid in imageflags else 0
+            blend = blends[tid] if tid in blends else 0
+
+            # Image Texture Node
+            tex_node = nodes.new(type="ShaderNodeTexImage")
+            tex_node.name = f"Texture{t}"
+            tex_node.label = f"Texture{t}"
+            tex_node.image = image
+            tex_node.location = (x_offset, y_offset)
+
+            if flags & 65536:
+                links.new(uv1_node.outputs['UV'], tex_node.inputs['Vector'])
+            else:
+                links.new(uv0_node.outputs['UV'], tex_node.inputs['Vector'])
+
+
+            # Projection
+            if flags & 64:
+                tex_node.projection = 'SPHERE'
+            elif flags & 128:
+                tex_node.projection = 'BOX'
+
+            # Extension
+            if flags & 48:
+                tex_node.extension = 'EXTEND'
+            elif flags & 24576:
+                tex_node.extension = 'MIRROR'
+
+            # TextureFlagsN
+            flag_node = nodes.new(type="ShaderNodeValue")
+            flag_node.name = f"TextureFlags{t}"
+            flag_node.label = f"TextureFlags{t}"
+            flag_node.outputs[0].default_value = flags
+            flag_node.location = (x_offset + 300, y_offset + 100)
+
+            # TextureBlendN
+            blend_node = nodes.new(type="ShaderNodeValue")
+            blend_node.name = f"TextureBlend{t}"
+            blend_node.label = f"TextureBlend{t}"
+            blend_node.outputs[0].default_value = blend
+            blend_node.location = (x_offset + 300, y_offset - 100)
+            
+
+            # Create a new MixRGB node for blending the texture
+            mix_node = nodes.new(type="ShaderNodeMixRGB")
+            mix_node.name = f"Mix{t}"
+            mix_node.label = f"Mix{t}"
+            mix_node.location = (x_offset + 300, y_offset)
+
+            # Set the blend mode for MixRGB
+            if blend == 1:
+                mix_node.blend_type = 'MIX'  # Alpha blend
+                mix_node.inputs['Fac'].default_value = 1.0
+            elif blend == 2:
+                mix_node.blend_type = 'MULTIPLY'  # Multiply
+                mix_node.inputs['Fac'].default_value = 1.0
+            elif blend == 3:
+                mix_node.blend_type = 'ADD'  # Additive
+                mix_node.inputs['Fac'].default_value = 1.0
+            elif blend == 4:
+                mix_node.blend_type = 'MIX'  # Normal map (handle later)
+                mix_node.inputs['Fac'].default_value = 0.0
+            elif blend == 5:
+                mix_node.blend_type = 'OVERLAY'  # Multiply 2x
+                mix_node.inputs['Fac'].default_value = 1.0
+
+
+            # If this is the first texture, use the Diffuse color as input
+            if prev_mix_node is None:
+                diff_color_node = nodes.new(type="ShaderNodeRGB")
+                diff_color_node.name = "DiffColor"
+                diff_color_node.label = "DiffColor"
+                diff_color_node.outputs[0].default_value = mat.rgba
+                diff_color_node.location = (x_offset, y_offset + 100)
+                links.new(diff_color_node.outputs['Color'], mix_node.inputs[1])
+            else:
+                # Link previous mix node to current mix node
+                links.new(prev_mix_node.outputs['Color'], mix_node.inputs[1])
+
+            # Connect the texture to the MixRGB node
+            links.new(tex_node.outputs['Color'], mix_node.inputs[2])
+
+            prev_mix_node = mix_node  # Update prev_mix_node for next iteration
+
+            y_offset -= 250
+        if prev_mix_node is not None:
+            links.new(prev_mix_node.outputs['Color'], bsdf.inputs['Base Color'])
+
+        # AlphaCutoff
+        alpha_node = nodes.new(type="ShaderNodeValue")
+        alpha_node.name = "AlphaCutoff"
+        alpha_node.label = "AlphaCutoff"
+        alpha_node.outputs[0].default_value = 0.5
+        alpha_node.location = (x_offset + 600, -200)
+        # Alpha
+        opacity_node = nodes.new(type="ShaderNodeValue")
+        opacity_node.name = "Opacity"
+        opacity_node.label = "Opacity"
+        opacity_node.outputs[0].default_value = mat.rgba[3]
+        opacity_node.location = (x_offset + 600, -200)
+        links.new(opacity_node.outputs[0], bsdf.inputs['Alpha'])
+        # Alpha
+        gloss_node = nodes.new(type="ShaderNodeValue")
+        gloss_node.name = "Opacity"
+        gloss_node.label = "Opacity"
+        gloss_node.outputs[0].default_value = 1-mat.shine
+        gloss_node.location = (x_offset + 600, -200)
+        links.new(gloss_node.outputs[0], bsdf.inputs['Roughness'])
+
+        # MeshFX
+        fx_node = nodes.new(type="ShaderNodeValue")
+        fx_node.name = "MeshFX"
+        fx_node.label = "MeshFX"
+        fx_node.outputs[0].default_value = mat.fx
+        fx_node.location = (x_offset + 600, -400)
+
+
+
+        material_mapping[i] = material.name
 
     global imported_armatures, weighting
     imported_armatures = []
