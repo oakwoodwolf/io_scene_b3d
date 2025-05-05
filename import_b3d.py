@@ -470,7 +470,21 @@ def load_b3d(filepath,
 
             y_offset -= 250
         if prev_mix_node is not None:
-            links.new(prev_mix_node.outputs['Color'], bsdf.inputs['Base Color'])
+            vcolor_node = nodes.new(type='ShaderNodeVertexColor')
+            vcolor_node.location = (x_offset + 1000, y_offset)
+            vcolor_node.layer_name = "Col"  # Name of the color attribute (check imported name)
+
+            # Multiply Node (for combining final texture with vertex color)
+            multiply_node = nodes.new(type='ShaderNodeMixRGB')
+            multiply_node.blend_type = 'MULTIPLY'
+            multiply_node.inputs['Fac'].default_value = 1.0
+            multiply_node.location = (x_offset + 1200, y_offset)
+
+            links.new(prev_mix_node.outputs['Color'], multiply_node.inputs[1])
+
+            links.new(vcolor_node.outputs['Color'], multiply_node.inputs[2])
+
+            links.new(multiply_node.outputs['Color'], bsdf.inputs['Base Color'])
 
         # AlphaCutoff
         alpha_node = nodes.new(type="ShaderNodeValue")
