@@ -360,8 +360,10 @@ def load_b3d(filepath,
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
         uv0_node = nodes.new('ShaderNodeUVMap')
         uv0_node.uv_map = "UV0" 
+        uv0_node.location = (-400, 0)
         uv1_node = nodes.new('ShaderNodeUVMap')
         uv1_node.uv_map = "UV1" 
+        uv1_node.location = (-400, -150)
 
         material.diffuse_color = mat.rgba
         if mat.fx & 16:
@@ -431,7 +433,7 @@ def load_b3d(filepath,
             mix_node = nodes.new(type="ShaderNodeMixRGB")
             mix_node.name = f"Mix{t}"
             mix_node.label = f"Mix{t}"
-            mix_node.location = (x_offset + 300, y_offset)
+            mix_node.location = (x_offset + 300, y_offset+150)
 
             # Set the blend mode for MixRGB
             if blend == 1:
@@ -465,7 +467,7 @@ def load_b3d(filepath,
                 diff_color_node.name = "DiffColor"
                 diff_color_node.label = "DiffColor"
                 diff_color_node.outputs[0].default_value = mat.rgba
-                diff_color_node.location = (x_offset, y_offset + 150)
+                diff_color_node.location = (x_offset, y_offset + 200)
                 links.new(diff_color_node.outputs['Color'], mix_node.inputs[1])
             else:
                 # Link previous mix node to current mix node
@@ -479,14 +481,14 @@ def load_b3d(filepath,
             y_offset -= 300
         if prev_mix_node is not None:
             vcolor_node = nodes.new(type='ShaderNodeVertexColor')
-            vcolor_node.location = (x_offset + 1000, y_offset)
+            vcolor_node.location = (x_offset + 400, y_offset)
             vcolor_node.layer_name = "Col"  # Name of the color attribute (check imported name)
 
             # Multiply Node (for combining final texture with vertex color)
             multiply_node = nodes.new(type='ShaderNodeMixRGB')
             multiply_node.blend_type = 'MULTIPLY'
             multiply_node.inputs['Fac'].default_value = 1.0
-            multiply_node.location = (x_offset + 1200, y_offset)
+            multiply_node.location = (x_offset + 600, y_offset)
 
             links.new(prev_mix_node.outputs['Color'], multiply_node.inputs[1])
 
@@ -499,20 +501,20 @@ def load_b3d(filepath,
         alpha_node.name = "AlphaCutoff"
         alpha_node.label = "AlphaCutoff"
         alpha_node.outputs[0].default_value = 0.5
-        alpha_node.location = (x_offset + 600, -200)
+        alpha_node.location = (x_offset + 500, -300)
         # Alpha
         opacity_node = nodes.new(type="ShaderNodeValue")
         opacity_node.name = "Opacity"
         opacity_node.label = "Opacity"
         opacity_node.outputs[0].default_value = mat.rgba[3]
-        opacity_node.location = (x_offset + 600, -200)
+        opacity_node.location = (x_offset + 500, -200)
         links.new(opacity_node.outputs[0], bsdf.inputs['Alpha'])
         # Alpha
         gloss_node = nodes.new(type="ShaderNodeValue")
         gloss_node.name = "Roughness"
         gloss_node.label = "Roughness"
         gloss_node.outputs[0].default_value = 1-mat.shine
-        gloss_node.location = (x_offset + 600, -200)
+        gloss_node.location = (x_offset + 500, -100)
         links.new(gloss_node.outputs[0], bsdf.inputs['Roughness'])
 
         # MeshFX
@@ -520,7 +522,7 @@ def load_b3d(filepath,
         fx_node.name = "MeshFX"
         fx_node.label = "MeshFX"
         fx_node.outputs[0].default_value = mat.fx
-        fx_node.location = (x_offset + 600, -400)
+        fx_node.location = (x_offset + 500, -400)
 
 
 

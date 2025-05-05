@@ -118,11 +118,12 @@ def getArmatureAnimationEnd(armature):
 # ==== Write B3D File ====
 # (main exporter function)
 def write_b3d_file(filename, settings, objects=[]):
-    global texture_flags, texs_stack, trimmed_paths, tesselated_objects
+    global texture_flags,texture_blends, texs_stack, trimmed_paths, tesselated_objects
     global brus_stack, vertex_groups, bone_stack, keys_stack
 
     #Global Stacks
     texture_flags = []
+    texture_blends = []
     texs_stack = {}
     brus_stack = []
     vertex_groups = []
@@ -180,26 +181,6 @@ def getFaceImage(face, obj,id=0):
     
     return None
 
-def getFaceFlags(face, obj,id=0):
-    try:
-        mat_index = face.material_index
-        if mat_index >= len(obj.data.materials):
-            return 0
-
-        material = obj.data.materials[mat_index]
-        if not material or not material.use_nodes:
-            return 0
-        tex_node_name = f"TextureFlags{id}"
-
-        for node in material.node_tree.nodes:
-            if  node.name == tex_node_name:
-                return node.value
-
-    except Exception as e:
-        print(f"getFaceImage error: {e}")
-    
-    return None
-
 
 # ==== Write TEXS Chunk ====
 def write_texs(objects, settings):
@@ -234,6 +215,7 @@ def write_texs(objects, settings):
 
             # 8 UV layers are supported
             texture_flags.append([None,None,None,None,None,None,None,None])
+            texture_blends.append([None,None,None,None,None,None,None,None])
 
             #if len(data.getUVLayerNames()) <= 8:
             uv_textures = data.uv_layers
@@ -282,21 +264,27 @@ def write_texs(objects, settings):
                             material = bpy.data.materials[face.material_index]
                             if material.node_tree:
                                 for node in material.node_tree.nodes:
-                                    if node.type == 'TEX_IMAGE' and node.name.startswith("Texture"):
-                                        texImage = node
-                                        if texImage:
-                                            if texImage.extension is 'EXTEND':
-                                                tiling = 48
-                                            elif texImage.extension is 'MIRROR':
-                                                tiling = 24578
-                                                
-                                            if texImage.projection is 'SPHERE':
-                                                mapping = 64
-                                            elif texImage.projection is 'BOX':
-                                                mapping = 128
+                                    if node.name == (f"TextureFlags{iuvlayer}"):
+                                        flags = node.outputs[0].default_value
+                                    else:
+                                        flags = tex_flag + enable_mipmaps
                                     
-                            texture_flags[obj_count][iuvlayer] = tex_flag + enable_mipmaps + tiling + mapping
+                            
+                            texture_flags[obj_count][iuvlayer] = flags
                             set_wrote = 1
+                        if texture_blends[obj_count][iuvlayer] is None:
+
+
+                            material = bpy.data.materials[face.material_index]
+                            if material.node_tree:
+                                for node in material.node_tree.nodes:
+                                    if node.name == (f"TextureBlend{iuvlayer}"):
+                                        blends = node.outputs[0].default_value
+                                    else:
+                                        blends = 2
+                                    
+                            
+                            texture_blends[obj_count][iuvlayer] = blends
 
             for face in data.polygons:
                 for iuvlayer,uvlayer in enumerate(uv_textures):
@@ -322,7 +310,7 @@ def write_texs(objects, settings):
                                 texs_stack[img_name] = [len(texs_stack), texture_flags[obj_count][iuvlayer]]
                                 temp_buf += write_string(img_name) #Texture File Name
                                 temp_buf += write_int(texture_flags[obj_count][iuvlayer]) #Flags
-                                temp_buf += write_int(2)   #Blend
+                                temp_buf += write_int(texture_blends[obj_count][iuvlayer])   #Blend
                                 temp_buf += write_float(0) #X_Pos
                                 temp_buf += write_float(0) #Y_Pos
                                 temp_buf += write_float(1) #X_Scale
