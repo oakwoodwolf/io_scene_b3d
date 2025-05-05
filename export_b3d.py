@@ -180,6 +180,26 @@ def getFaceImage(face, obj,id=0):
     
     return None
 
+def getFaceFlags(face, obj,id=0):
+    try:
+        mat_index = face.material_index
+        if mat_index >= len(obj.data.materials):
+            return 0
+
+        material = obj.data.materials[mat_index]
+        if not material or not material.use_nodes:
+            return 0
+        tex_node_name = f"TextureFlags{id}"
+
+        for node in material.node_tree.nodes:
+            if  node.name == tex_node_name:
+                return node.value
+
+    except Exception as e:
+        print(f"getFaceImage error: {e}")
+    
+    return None
+
 
 # ==== Write TEXS Chunk ====
 def write_texs(objects, settings):
@@ -565,6 +585,44 @@ def write_node(objects, settings):
 
             anim_data = None
 
+            modifiers = obj.modifiers
+            if len(modifiers) == 0:
+                modifiers = None
+
+            if settings.get("apply_modifiers"):
+                if modifiers is None:  # If no modifier, use original mesh, it will instance all shared mesh in a single glTF mesh
+                    blender_mesh = obj.data
+                    # Keep materials from object, as no modifiers are applied, so no risk that
+                    # modifiers changed them
+                    materials = tuple(ms.material for ms in obj.material_slots)
+                else:
+                    armature_modifiers = {}
+
+                    for idx, modifier in enumerate(obj.modifiers):
+                        if modifier.type == 'ARMATURE':
+                            armature_modifiers[idx] = modifier.show_viewport
+                            modifier.show_viewport = False
+
+                    depsgraph = bpy.context.evaluated_depsgraph_get()
+                    blender_mesh_owner = obj.evaluated_get(depsgraph)
+                    blender_mesh = blender_mesh_owner.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+                    # Seems now (from 4.2) the custom properties are Statically Typed
+                    # so no need to copy them in that case, because overwriting them will crash
+                    if len(blender_mesh.keys()) == 0:
+                        # Copy custom properties
+                        for prop in [p for p in obj.data.keys()]:
+                            blender_mesh[prop] = obj.data[prop]
+                    else:
+                        for idx, show_viewport in armature_modifiers.items():
+                            obj.modifiers[idx].show_viewport = show_viewport
+
+                    # Keep materials from the newly created tmp mesh, but if no materials, keep from object
+                    materials = tuple(mat for mat in blender_mesh.materials)
+                    if len(materials) == 1 and materials[0] is None:
+                        materials = tuple(ms.material for ms in obj.material_slots)
+            else:
+                blender_mesh = obj.data
+                materials = tuple(ms.material for ms in obj.material_slots)
             if settings.get("object_armature"):
                 # check if this object has an armature modifier
                 for curr_mod in obj.modifiers:
@@ -760,7 +818,7 @@ def write_node(objects, settings):
 
                     if DEBUG: print("        </frame>")
 
-            temp_buf.append(write_node_mesh(settings, obj, anim_data)) #NODE MESH
+            temp_buf.append(write_node_mesh(settings, obj, anim_data, blender_mesh)) #NODE MESH
 
             if anim_data:
                 temp_buf.append(write_node_anim(num_frames)) #NODE ANIM
@@ -870,7 +928,7 @@ def write_node(objects, settings):
     return main_buf
 
 # ==== Write NODE MESH Chunk ====
-def write_node_mesh(settings, obj, arm_action):
+def write_node_mesh(settings, obj, arm_action, blender_mesh= None):
     global vertex_groups
     vertex_groups = []
     mesh_buf = bytearray()
@@ -880,7 +938,8 @@ def write_node_mesh(settings, obj, arm_action):
         data = obj.data
     else:
         data = obj.to_mesh()
-
+    if blender_mesh is not None:
+        data = blender_mesh
     temp_buf += write_int(-1) #Brush ID
     temp_buf += write_node_mesh_vrts(settings, obj, data, arm_action) #NODE MESH VRTS
     temp_buf += write_node_mesh_tris(obj,data) #NODE MESH TRIS
@@ -1043,7 +1102,7 @@ def write_node_mesh_tris(obj,data):
         uv_layer_count = len(uv_textures)
         for iuvlayer,uvlayer in enumerate(uv_textures):
             if iuvlayer < 8:
-                if iuvlayer >= uv_layer_count:
+                if iuvlayer > uv_layer_count:
                     continue
 
                 img_id = -1

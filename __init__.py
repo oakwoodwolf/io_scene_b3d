@@ -115,7 +115,7 @@ class B3D_PT_import_warning(bpy.types.Panel):
 class ExportB3D(bpy.types.Operator, ExportHelper):
     """Export to B3D file format (.b3d)"""
     bl_idname = "export_scene.b3d"
-    bl_label = "Export B3D"
+    bl_label = "Export Blitz3D Scene"
 
     filename_ext = ".b3d"
     filter_glob: StringProperty(default="*.b3d", options={"HIDDEN"})
@@ -142,6 +142,12 @@ class ExportB3D(bpy.types.Operator, ExportHelper):
         name="Selected Objects",
         description="Export selected and visible objects only",
         default=True,
+    )
+
+    apply_modifiers: BoolProperty(
+        name='Apply Modifiers',
+        description='Apply modifiers (excluding Armatures) to mesh objects -',
+        default=False
     )
 
     use_visible: BoolProperty(
@@ -215,6 +221,7 @@ class ExportB3D(bpy.types.Operator, ExportHelper):
         export_settings["use_local_transform"] = self.use_local_transform
         export_settings["export_ambient"] = self.export_ambient
         export_settings["enable_mipmaps"] = self.enable_mipmaps
+        export_settings["apply_modifiers"] = self.apply_modifiers
 
         export_settings["use_selection"] = self.use_selection
         export_settings["use_visible"] = self.use_visible
@@ -281,6 +288,8 @@ class B3D_PT_export_mesh(bpy.types.Panel):
         layout.prop(operator, "export_materials")
         layout.prop(operator, "export_normals")
         layout.prop(operator, "export_colors")
+        layout.prop(operator, "apply_modifiers")
+
 
 class B3D_PT_export_other(bpy.types.Panel):
     bl_space_type = "FILE_BROWSER"
