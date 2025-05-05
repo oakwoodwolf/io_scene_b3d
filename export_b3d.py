@@ -160,7 +160,7 @@ def write_b3d_file(filename, settings, objects=[]):
 def getVertexColors(obj_data):
     return obj_data.color_attributes
 
-def getFaceImage(face, obj):
+def getFaceImage(face, obj,id=0):
     try:
         mat_index = face.material_index
         if mat_index >= len(obj.data.materials):
@@ -169,9 +169,10 @@ def getFaceImage(face, obj):
         material = obj.data.materials[mat_index]
         if not material or not material.use_nodes:
             return None
+        tex_node_name = f"Texture{id}"
 
         for node in material.node_tree.nodes:
-            if node.type == 'TEX_IMAGE' and node.image:
+            if node.type == 'TEX_IMAGE' and node.image and node.name == tex_node_name:
                 return node.image
 
     except Exception as e:
@@ -260,17 +261,19 @@ def write_texs(objects, settings):
                             mapping = 0
                             material = bpy.data.materials[face.material_index]
                             if material.node_tree:
-                                texImage = material.node_tree.nodes["Image Texture"]
-                                if texImage:
-                                    if texImage.extension is 'EXTEND':
-                                        tiling = 48
-                                    elif texImage.extension is 'MIRROR':
-                                        tiling = 24578
-                                        
-                                    if texImage.projection is 'SPHERE':
-                                        mapping = 64
-                                    elif texImage.projection is 'BOX':
-                                        mapping = 128
+                                for node in material.node_tree.nodes:
+                                    if node.type == 'TEX_IMAGE' and node.name.startswith("Texture"):
+                                        texImage = node
+                                        if texImage:
+                                            if texImage.extension is 'EXTEND':
+                                                tiling = 48
+                                            elif texImage.extension is 'MIRROR':
+                                                tiling = 24578
+                                                
+                                            if texImage.projection is 'SPHERE':
+                                                mapping = 64
+                                            elif texImage.projection is 'BOX':
+                                                mapping = 128
                                     
                             texture_flags[obj_count][iuvlayer] = tex_flag + enable_mipmaps + tiling + mapping
                             set_wrote = 1
