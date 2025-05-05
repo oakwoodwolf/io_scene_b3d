@@ -417,14 +417,14 @@ def load_b3d(filepath,
             flag_node.name = f"TextureFlags{t}"
             flag_node.label = f"TextureFlags{t}"
             flag_node.outputs[0].default_value = flags
-            flag_node.location = (x_offset + 300, y_offset + 100)
+            flag_node.location = (x_offset - 200, y_offset)
 
             # TextureBlendN
             blend_node = nodes.new(type="ShaderNodeValue")
             blend_node.name = f"TextureBlend{t}"
             blend_node.label = f"TextureBlend{t}"
             blend_node.outputs[0].default_value = blend
-            blend_node.location = (x_offset + 300, y_offset - 100)
+            blend_node.location = (x_offset - 200, y_offset - 100)
             
 
             # Create a new MixRGB node for blending the texture
@@ -446,6 +446,14 @@ def load_b3d(filepath,
             elif blend == 4:
                 mix_node.blend_type = 'MIX'  # Normal map (handle later)
                 mix_node.inputs['Fac'].default_value = 0.0
+
+                nrm_node = nodes.new(type="ShaderNodeNormalMap")
+                nrm_node.name = f"Normal{t}"
+                nrm_node.label = f"Normal{t}"
+                nrm_node.location = (x_offset + 200, y_offset)
+                links.new(tex_node.outputs['Color'], nrm_node.inputs['Color'])
+                links.new(nrm_node.outputs['Normal'], bsdf.inputs['Normal'])
+
             elif blend == 5:
                 mix_node.blend_type = 'OVERLAY'  # Multiply 2x
                 mix_node.inputs['Fac'].default_value = 1.0
@@ -457,7 +465,7 @@ def load_b3d(filepath,
                 diff_color_node.name = "DiffColor"
                 diff_color_node.label = "DiffColor"
                 diff_color_node.outputs[0].default_value = mat.rgba
-                diff_color_node.location = (x_offset, y_offset + 100)
+                diff_color_node.location = (x_offset, y_offset + 150)
                 links.new(diff_color_node.outputs['Color'], mix_node.inputs[1])
             else:
                 # Link previous mix node to current mix node
@@ -468,7 +476,7 @@ def load_b3d(filepath,
 
             prev_mix_node = mix_node  # Update prev_mix_node for next iteration
 
-            y_offset -= 250
+            y_offset -= 300
         if prev_mix_node is not None:
             vcolor_node = nodes.new(type='ShaderNodeVertexColor')
             vcolor_node.location = (x_offset + 1000, y_offset)
@@ -501,8 +509,8 @@ def load_b3d(filepath,
         links.new(opacity_node.outputs[0], bsdf.inputs['Alpha'])
         # Alpha
         gloss_node = nodes.new(type="ShaderNodeValue")
-        gloss_node.name = "Opacity"
-        gloss_node.label = "Opacity"
+        gloss_node.name = "Roughness"
+        gloss_node.label = "Roughness"
         gloss_node.outputs[0].default_value = 1-mat.shine
         gloss_node.location = (x_offset + 600, -200)
         links.new(gloss_node.outputs[0], bsdf.inputs['Roughness'])

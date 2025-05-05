@@ -290,7 +290,7 @@ def write_texs(objects, settings):
 
                         #if DEBUG: print("<uv face=", face.index, ">")
 
-                        img = getFaceImage(face,obj)
+                        img = getFaceImage(face,obj,iuvlayer)
                         if img:
                             if img.filepath in trimmed_paths:
                                 img_name = trimmed_paths[img.filepath]
@@ -369,7 +369,7 @@ def write_brus(objects, settings):
                       #  if face.index >= len(uv_textures[iuvlayer].data):
                       #      continue
 
-                        img = getFaceImage(face,obj)
+                        img = getFaceImage(face,obj,i)
 
                         if img:
                             img_found = 1
@@ -1048,7 +1048,7 @@ def write_node_mesh_tris(obj,data):
 
                 img_id = -1
 
-                img = getFaceImage(face,obj)
+                img = getFaceImage(face,obj,iuvlayer)
 
                 if img:
                     if img.filepath in trimmed_paths:
